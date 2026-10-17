@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
-import { ROUTINE_ORDER, routineInfo } from "@/lib/rehab/routines/index";
+import { planStore } from "@/lib/rehab/plan";
+import { routineInfo } from "@/lib/rehab/routines/index";
 import type { RoutineId } from "@/lib/rehab/routines/types";
 import { SETTINGS } from "@/lib/rehab/settings";
 import {
@@ -13,12 +14,15 @@ import {
   todayTotalMs,
   type SessionRecord,
 } from "@/lib/rehab/storage";
+import { EhrUploadScreen } from "./EhrUploadScreen";
+import { FallGuard } from "./FallGuard";
 import { RoutineScreen, type RoutineResult } from "./RoutineScreen";
 import { BreakScreen, FinishScreen, HomeScreen, ProgressScreen, SessionCompleteScreen } from "./screens";
 import { usePoseSource } from "./usePoseSource";
 
 type ScreenState =
   | { name: "home" }
+  | { name: "upload" }
   | { name: "progress" }
   | { name: "routine"; id: RoutineId; note?: string; run: number }
   | { name: "finish"; recordId: string }
@@ -27,9 +31,9 @@ type ScreenState =
 
 const noopSubscribe = () => () => {};
 
-/** Next routine after `from` in session order that isn't done today, plus the ones skipped on the way. */
-function planNext(from: RoutineId | null, done: Set<RoutineId>) {
-  const later = from === null ? ROUTINE_ORDER : ROUTINE_ORDER.slice(ROUTINE_ORDER.indexOf(from) + 1);
+/** Next routine in today's plan after `from` that isn't done today, plus the ones skipped on the way. */
+function planNext(order: RoutineId[], from: RoutineId | null, done: Set<RoutineId>) {
+  const later = from === null ? order : order.slice(order.indexOf(from) + 1);
   const next = later.find((id) => !done.has(id)) ?? null;
   const skipped = next ? later.slice(0, later.indexOf(next)) : [];
   const name = (id: RoutineId) => routineInfo(id, SETTINGS).name;
@@ -42,7 +46,11 @@ function planNext(from: RoutineId | null, done: Set<RoutineId>) {
 
 export default function RehabApp() {
   const source = usePoseSource();
+  const { videoRef } = source;
   const sessions = useSyncExternalStore(sessionStore.subscribe, sessionStore.getSnapshot, sessionStore.getServerSnapshot);
+  // Today's exercises, chosen from the uploaded health record; null until one is uploaded.
+  const plan = useSyncExternalStore(planStore.subscribe, planStore.getSnapshot, planStore.getServerSnapshot);
+  const order = plan?.routines ?? [];
   // Dates depend on the viewer's clock and storage, so only compute them in the browser.
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
   const [screen, setScreen] = useState<ScreenState>({ name: "home" });
@@ -63,7 +71,7 @@ export default function RehabApp() {
   };
 
   const goNext = (from: RoutineId | null) => {
-    const { next, note } = planNext(from, doneToday);
+    const { next, note } = planNext(order, from, doneToday);
     if (next) openRoutine(next, note);
     else setScreen({ name: "complete" });
   };
@@ -88,10 +96,18 @@ export default function RehabApp() {
   };
 
   let content;
-  switch (screen.name) {
+  // Plans and dates live in browser storage, so render nothing until hydrated.
+  if (!hydrated) content = null;
+  else if (!plan) content = <EhrUploadScreen onDone={home} />;
+  else switch (screen.name) {
+    case "upload":
+      content = <EhrUploadScreen onDone={home} onCancel={home} />;
+      break;
     case "home":
       content = (
         <HomeScreen
+          plan={plan}
+          onNewRecord={() => setScreen({ name: "upload" })}
           doneToday={doneToday}
           streak={streak}
           demo={source.demo}
@@ -128,7 +144,7 @@ export default function RehabApp() {
       content = (
         <FinishScreen
           record={record}
-          nextId={planNext(record.routineId, doneToday).next}
+          nextId={planNext(order, record.routineId, doneToday).next}
           onFeeling={(f) => setFeeling(record.id, f)}
           onNext={() => goNext(record.routineId)}
           onBreak={() => setScreen({ name: "break", fromId: record.routineId, hard: record.feeling === "hard" })}
@@ -142,14 +158,14 @@ export default function RehabApp() {
       content = (
         <BreakScreen
           hard={screen.hard}
-          nextId={planNext(screen.fromId, doneToday).next}
+          nextId={planNext(order, screen.fromId, doneToday).next}
           onContinue={() => goNext(screen.fromId)}
           onHome={home}
         />
       );
       break;
     case "complete":
-      content = <SessionCompleteScreen doneToday={doneToday} totalMs={totalMs} streak={streak} onHome={home} />;
+      content = <SessionCompleteScreen routines={order} doneToday={doneToday} totalMs={totalMs} streak={streak} onHome={home} />;
       break;
   }
 
@@ -159,6 +175,10 @@ export default function RehabApp() {
         <p className="bg-lime-400 px-4 py-2 text-center text-lg font-bold text-black">Demo mode: keyboard controls, no camera</p>
       ) : null}
       {content}
+      {/* The camera feed for pose tracking. Kept mounted on every screen so fall
+          detection always runs; routine screens draw it through their canvas. */}
+      <video ref={videoRef} className="pointer-events-none fixed top-0 left-0 h-px w-px opacity-0" playsInline muted />
+      <FallGuard source={source} />
     </div>
   );
 }

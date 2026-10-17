@@ -85,10 +85,36 @@ Smoke test (calls the real workflow over HTTP and opens a WebRTC session):
 npm run smoke:roboflow
 ```
 
-## Fall monitor
+## Health record → today's exercises (ChatGPT)
 
-`/monitor` watches the webcam continuously and sounds an alarm when someone falls. It doesn't use a trained fall model:
-MediaPipe Pose (lite) tracks the body in the browser, and `lib/fall/detector.ts` applies simple rules to the torso
+The app opens on **Upload your health record**. The user uploads their EHR as a PDF; the server extracts its text
+(`unpdf`) and asks ChatGPT which of the five exercises are safe and helpful today, with a one-line reason for each.
+The home screen and "Start today's session" then show only those. "Upload a new health record" on the home screen
+replaces the plan.
+
+Add an OpenAI API key to `.env.local`:
+
+```bash
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-6.1-sol   # optional; this is the default
+```
+
+| File | Role |
+| --- | --- |
+| `app/components/rehab/EhrUploadScreen.tsx` | Upload screen (file picker or drag and drop) |
+| `app/api/ehr/plan/route.ts` | `POST` the PDF as form field `file`; returns `{ routines, reasons, summary }` |
+| `lib/ehr/server.ts` | Server-only: PDF text extraction and the ChatGPT call (structured output limited to the five routine IDs) |
+| `lib/rehab/plan.ts` | The chosen plan in `localStorage` |
+
+The record is sent to OpenAI but never stored or logged; only the chosen plan is kept, on the device. Scanned
+(image-only) PDFs have no text and are rejected with a message. The choice isn't medical advice, and the upload screen
+says so.
+
+## Fall detection
+
+Fall detection is always on: the app opens the camera at launch and watches on every screen (home, exercises, breaks),
+with a status pill in the bottom-right corner. It's off only in demo mode. It doesn't use a trained fall model: it
+reuses the rehab tracker's MediaPipe Pose stream (`usePoseSource`), and `lib/fall/detector.ts` applies simple rules to the torso
 (the midpoint of the shoulders and hips). Distances are in torso lengths, so they work near and far from the camera.
 
 A pose only counts as a person once MediaPipe sees its shoulders clearly and has tracked it steadily for 0.4 s, and
@@ -111,12 +137,12 @@ The alarm beeps until someone presses **I'm OK**, which also resets standing hei
 npm run test:fall
 ```
 
-The monitor keeps the screen awake and reconnects if the camera drops out, but browsers pause it when the tab is hidden, so keep the page visible (for example on a dedicated laptop or tablet).
+It keeps the screen awake, but browsers pause it when the tab is hidden, so keep the app visible (for example on a dedicated laptop or tablet).
 
 ## Test alert (Twilio)
 
-When the fall alarm goes off, `/monitor` calls and texts `ALERT_TO_NUMBER` ("A fall was detected. Please check on
-them.") once, and shows the result on the alarm screen. The **Test Alert** button sends the same alert marked "TEST". Add these to `.env.local` (gitignored); all numbers need the
+When the fall alarm goes off, the app calls and texts `ALERT_TO_NUMBER` ("A fall was detected. Please check on
+them.") once, and shows the result on the alarm screen. The **Test alert** button in the status pill sends the same alert marked "TEST". Add these to `.env.local` (gitignored); all numbers need the
 `+` country-code format:
 
 ```bash

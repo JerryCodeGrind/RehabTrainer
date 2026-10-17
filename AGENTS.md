@@ -39,7 +39,13 @@ Before the final response, run one reporting pass. If candidates remain, from th
 
 ## Fall monitor
 
-- `/monitor` (`app/components/FallMonitor.tsx`) uses MediaPipe PoseLandmarker plus rules in `lib/fall/detector.ts`. No Roboflow, no trained fall model.
+- Fall detection is always on: `app/components/rehab/FallGuard.tsx` (mounted in `RehabApp`) feeds the shared `usePoseSource` stream into the rules in `lib/fall/detector.ts`. The camera opens at app start and the one `<video>` lives in `RehabApp`, so poses flow on every screen; don't add another video element or pose model. No Roboflow, no trained fall model.
 - `lib/fall/detector.ts` is pure logic with no runtime imports (the test loads it with Node type stripping), and no TS parameter properties or enums.
 - Run `npm run test:fall` after changing `lib/fall/` or `FALL_CONFIG`.
 - Alerts: `triggerAlert()` in `lib/alert/server.ts` (Twilio, server-only) via `POST /api/alert/fall` (sent once when the alarm goes off) and `POST /api/alert/test`. Never send alerts to emergency numbers; recipient comes only from `ALERT_TO_NUMBER`.
+
+## Health record plan
+
+- The app starts on `EhrUploadScreen` until a plan exists. `POST /api/ehr/plan` (PDF in form field `file`) → `lib/ehr/server.ts` extracts text with `unpdf` and asks OpenAI (`OPENAI_API_KEY`, `OPENAI_MODEL`, default `gpt-6.1-sol`) to pick routines; the JSON schema only allows IDs from `ROUTINE_ORDER`.
+- Never store or log the record text. Only the plan (`lib/rehab/plan.ts`, localStorage) is kept.
+- Home, "Start today's session" and Session complete use the plan's routines; Progress still shows all routines.

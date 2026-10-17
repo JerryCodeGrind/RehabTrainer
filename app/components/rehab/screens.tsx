@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { CarePlan } from "@/lib/rehab/plan";
 import { ROUTINE_ORDER, routineInfo } from "@/lib/rehab/routines/index";
 import type { RoutineId } from "@/lib/rehab/routines/types";
 import { SETTINGS } from "@/lib/rehab/settings";
@@ -10,6 +11,8 @@ import { BTN_GHOST, BTN_PRIMARY, BTN_SECONDARY, formatDuration, GoalChip, Screen
 const info = (id: RoutineId) => routineInfo(id, SETTINGS);
 
 export function HomeScreen({
+  plan,
+  onNewRecord,
   doneToday,
   streak,
   demo,
@@ -18,6 +21,8 @@ export function HomeScreen({
   onStartSession,
   onProgress,
 }: {
+  plan: CarePlan;
+  onNewRecord: () => void;
   doneToday: Set<RoutineId>;
   streak: number;
   demo: boolean;
@@ -26,13 +31,14 @@ export function HomeScreen({
   onStartSession: () => void;
   onProgress: () => void;
 }) {
-  const count = ROUTINE_ORDER.filter((id) => doneToday.has(id)).length;
+  const routines = plan.routines;
+  const count = routines.filter((id) => doneToday.has(id)).length;
   return (
     <Screen>
       <header className="flex flex-col gap-3">
         <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">Home Rehab</h1>
         <p className="text-2xl text-zinc-300">
-          {count} of {ROUTINE_ORDER.length} exercises done today
+          {count} of {routines.length} exercises done today
           {" · "}
           <span className="font-semibold text-lime-300">
             {streak} day{streak === 1 ? "" : "s"} in a row
@@ -40,17 +46,32 @@ export function HomeScreen({
         </p>
       </header>
 
-      <div className="flex flex-wrap gap-4">
-        <button onClick={onStartSession} className={BTN_PRIMARY}>
-          {count === 0 ? "Start today's session" : count < ROUTINE_ORDER.length ? "Continue today's session" : "Today's session is done ✓"}
+      <section className="flex flex-col gap-4 rounded-3xl bg-zinc-900 p-6">
+        <p className="text-lg text-zinc-400">Chosen for you from {plan.fileName}</p>
+        <p className="text-2xl">{plan.summary}</p>
+        {routines.length === 0 ? (
+          <p className="text-2xl font-semibold text-yellow-300">
+            None of these exercises look right for you today. Check with your care team before exercising.
+          </p>
+        ) : null}
+        <button onClick={onNewRecord} className={`${BTN_GHOST} self-start`}>
+          Upload a new health record
         </button>
+      </section>
+
+      <div className="flex flex-wrap gap-4">
+        {routines.length > 0 ? (
+          <button onClick={onStartSession} className={BTN_PRIMARY}>
+            {count === 0 ? "Start today's session" : count < routines.length ? "Continue today's session" : "Today's session is done ✓"}
+          </button>
+        ) : null}
         <button onClick={onProgress} className={BTN_SECONDARY}>
           Progress
         </button>
       </div>
 
       <ul className="grid gap-5 md:grid-cols-2">
-        {ROUTINE_ORDER.map((id, i) => {
+        {routines.map((id, i) => {
           const r = info(id);
           const done = doneToday.has(id);
           return (
@@ -67,6 +88,7 @@ export function HomeScreen({
                   <GoalChip goal={r.goal} />
                   <span className="text-xl text-zinc-200">{r.target}</span>
                 </span>
+                {plan.reasons[id] ? <span className="text-xl text-zinc-300">{plan.reasons[id]}</span> : null}
                 <span className={`text-2xl font-semibold ${done ? "text-lime-300" : "text-zinc-400"}`}>
                   {done ? "✓ Done today" : "Not done yet today"}
                 </span>
@@ -215,17 +237,20 @@ export function BreakScreen({ hard, nextId, onContinue, onHome }: { hard: boolea
 }
 
 export function SessionCompleteScreen({
+  routines,
   doneToday,
   totalMs,
   streak,
   onHome,
 }: {
+  /** Today's plan. */
+  routines: RoutineId[];
   doneToday: Set<RoutineId>;
   totalMs: number;
   streak: number;
   onHome: () => void;
 }) {
-  const all = ROUTINE_ORDER.every((id) => doneToday.has(id));
+  const all = routines.every((id) => doneToday.has(id));
   return (
     <Screen>
       <header className="text-center">
@@ -236,7 +261,7 @@ export function SessionCompleteScreen({
         </p>
       </header>
       <ul className="flex flex-col gap-3 rounded-3xl bg-zinc-900 p-6 text-2xl">
-        {ROUTINE_ORDER.map((id) => (
+        {routines.map((id) => (
           <li key={id} className="flex items-center justify-between gap-4">
             <span>{info(id).name}</span>
             <span className={doneToday.has(id) ? "font-bold text-lime-300" : "text-zinc-500"}>

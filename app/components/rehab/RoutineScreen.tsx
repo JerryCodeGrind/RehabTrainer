@@ -37,7 +37,7 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
   const lastRender = useRef(0);
   const info = runner.routine.info;
   const {
-    ensureCamera, resetDemo, subscribe, demo, status, error, videoRef, canvasRef,
+    ensureCamera, resetDemo, subscribe, demo, status, error, canvasRef,
     autoFrame, setAutoFrame, setFramingHint, getZoom, aspect,
     gestureStart, setGestureStart, gestureError, setGestureActive, subscribeGesture, subscribeGestureDiag, setGestureLogging,
   } = source;
@@ -182,13 +182,12 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.9fr)_minmax(320px,1fr)]">
         {/* Left (wide): video, status bar, meters and the Start / Stop button. */}
         <div className="flex min-w-0 flex-col gap-4">
-          {/* The canvas shows the (auto-framed) camera picture and skeleton. The video
-              element only feeds it, so it stays in the page but invisible. */}
+          {/* The canvas shows the (auto-framed) camera picture and skeleton, drawn from
+              the app's shared, invisible video element (see RehabApp). */}
           <div
             className="relative mx-auto max-h-[62vh] w-full overflow-hidden rounded-3xl bg-zinc-900"
             style={{ aspectRatio: aspect }}
           >
-            <video ref={videoRef} className="pointer-events-none absolute inset-0 h-full w-full opacity-0" playsInline muted />
             <canvas ref={canvasRef} className="absolute inset-0 h-full w-full -scale-x-100 object-contain" />
 
             {!demo && status !== "ready" ? (
