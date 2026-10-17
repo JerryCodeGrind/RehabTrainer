@@ -26,6 +26,28 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Home rehab tracker
+
+The home page is a full-body rehab tracker for people recovering from a stroke or hip/knee surgery. It uses MediaPipe Pose Landmarker (lite model, GPU delegate with CPU fallback) and has five routines: sit-to-stand, marching in place, walk out and back, single-leg stance, and standing hip and leg stretches (quad stretch, hamstring stretch, side leg raises; set `stretches.hipPrecautions` to skip the hamstring stretch).
+
+| File | Role |
+| --- | --- |
+| `lib/rehab/settings.ts` | Every target and threshold, with comments on what each measures |
+| `lib/rehab/pose.ts` | Landmark indices, EMA smoothing, torso normalization, joint-angle helper |
+| `lib/rehab/routines/*.ts` | One class per routine behind the shared `Routine` interface (`calibrate`, `update`, `isComplete`, `getSummary`, `getFeedback`); register new ones in `routines/index.ts` |
+| `lib/rehab/framing.ts` | Auto-framing: crops the displayed picture to follow the user. Detection always uses the full frame |
+| `lib/rehab/runner.ts` | Phases: ready → countdown → calibration → tracking → done |
+| `lib/rehab/storage.ts` | Session history in `localStorage`, today's status, streak |
+| `lib/rehab/demo.ts` | Keyboard-driven synthetic pose for testing without a camera |
+| `app/components/rehab/` | Screens, plus `usePoseSource` (one shared camera and model) |
+
+- **Auto-framing:** on by default, toggled per device from the routine screen. The walk routine always shows the full frame.
+- **Gesture start:** on a routine screen, hold a thumbs-up for 1 s (MediaPipe Gesture Recognizer on crops around each hand) or raise a hand above your shoulder for 1.5 s (Pose only, works from far away). Toggle per device; the button still works. With debug on, a "Start gesture diagnostics" panel shows each stage, the console gets `[gesture]` logs (once per second per stage), and `window.rehabDebug.injectPose(landmarks)` replaces the pose model output for testing. Gestures only need the upper body; without visible hips, scale comes from shoulder width.
+- **Framing check:** Start Exercise unlocks only when every joint the routine needs is visible.
+- **Demo mode:** tick "Demo mode" on the home screen, then use the keys listed on each routine screen.
+- **Debug panel:** press `` ` `` or click "Debug" to see raw measurements and state.
+- **Logic tests:** `npm run test:rehab` runs every routine end to end on the demo pose in Node.
+
 ## Roboflow: White Monster workflow (Task 1)
 
 Task 1 detects Monster Energy cans (one class, `monster_can`; RF-DETR small) live from the webcam using the Roboflow Workflow
