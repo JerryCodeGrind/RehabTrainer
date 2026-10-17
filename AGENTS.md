@@ -36,3 +36,10 @@ Before the final response, run one reporting pass. If candidates remain, from th
 - Workflow IDs, input and output names live in `lib/roboflow/monsters.ts`. Keep that file free of runtime imports (the smoke test loads it with Node type stripping), and use `import type` for type-only imports in `lib/roboflow/`.
 - Parse outputs with `parseMonsterPredictions()`, not ad-hoc field access.
 - Run `npm run smoke:roboflow` after changing anything in `lib/roboflow/` or the workflow itself.
+
+## Fall monitor
+
+- `/monitor` (`app/components/FallMonitor.tsx`) uses MediaPipe PoseLandmarker plus rules in `lib/fall/detector.ts`. No Roboflow, no trained fall model.
+- `lib/fall/detector.ts` is pure logic with no runtime imports (the test loads it with Node type stripping), and no TS parameter properties or enums.
+- Run `npm run test:fall` after changing `lib/fall/` or `FALL_CONFIG`.
+- Alerts: `triggerAlert()` in `lib/alert/server.ts` (Twilio, server-only) via `POST /api/alert/fall` (sent once when the alarm goes off) and `POST /api/alert/test`. Never send alerts to emergency numbers; recipient comes only from `ALERT_TO_NUMBER`.

@@ -63,6 +63,55 @@ Smoke test (calls the real workflow over HTTP and opens a WebRTC session):
 npm run smoke:roboflow
 ```
 
+## Fall monitor
+
+`/monitor` watches the webcam continuously and sounds an alarm when someone falls. It doesn't use a trained fall model:
+MediaPipe Pose (lite) tracks the body in the browser, and `lib/fall/detector.ts` applies simple rules to the torso
+(the midpoint of the shoulders and hips). Distances are in torso lengths, so they work near and far from the camera.
+
+A pose only counts as a person once MediaPipe sees its shoulders clearly and has tracked it steadily for 0.4 s, and
+its position is smoothed over the last 5 frames, so flickering false detections and one-frame glitches are ignored.
+When someone (re)appears after being gone, their standing height is learned afresh.
+
+A person is **down** when they're either:
+
+- **on the floor:** 1.5+ torso lengths below their standing height (the highest they've been in the last 10 minutes), or
+- **out of frame:** tracking is lost while their hips were in the bottom quarter of the view and they were already below standing height (for cameras that can't see the floor).
+
+Staying down raises the alarm: after **3 s** if they got there with a fast drop (0.9+ torso lengths within 1 s), or
+after **15 s** if they went down slowly (sliding down a wall, a slow collapse). Getting back up cancels it. Sitting in a
+chair, crouching, or lying on a bed or couch doesn't go low enough to count; sitting or lying on the floor on purpose
+does, after 15 s.
+
+The alarm beeps until someone presses **I'm OK**, which also resets standing height. Thresholds live in `FALL_CONFIG`; check changes with:
+
+```bash
+npm run test:fall
+```
+
+The monitor keeps the screen awake and reconnects if the camera drops out, but browsers pause it when the tab is hidden, so keep the page visible (for example on a dedicated laptop or tablet).
+
+## Test alert (Twilio)
+
+When the fall alarm goes off, `/monitor` calls and texts `ALERT_TO_NUMBER` ("A fall was detected. Please check on
+them.") once, and shows the result on the alarm screen. The **Test Alert** button sends the same alert marked "TEST". Add these to `.env.local` (gitignored); all numbers need the
+`+` country-code format:
+
+```bash
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_FROM_NUMBER=+15551234567   # your Twilio number
+ALERT_TO_NUMBER=+15557654321      # who gets the alert; must be verified on a trial account
+```
+
+On a trial account, Twilio assigns the sender number: copy the **From** number on **Messaging → Try out SMS** into
+`TWILIO_FROM_NUMBER`. The call speaks the message (fetched from Twilio's Twimlets service), but on a trial the SMS can
+only use Twilio's sample wording; that switches automatically once the account is upgraded.
+
+`triggerAlert()` in `lib/alert/server.ts` (server-only) sends the call and SMS; `POST /api/alert/fall` and
+`POST /api/alert/test` run it, at most once a minute and once every 30 s respectively. It only ever contacts `ALERT_TO_NUMBER`, and rejects anything that isn't a full phone number
+(so never 911 or other emergency numbers). The result, or Twilio's error, is shown under the button.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
