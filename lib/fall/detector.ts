@@ -12,8 +12,9 @@ export const FALL_CONFIG = {
   minVisibility: 0.5,
   /** ...and once it has been seen this long (ms) without a gap, which filters flickering false detections... */
   minPresentMs: 400,
-  /** ...where, until then, missing it for this long (ms) counts as a gap. */
-  maxNewGapMs: 100,
+  /** ...where, until then, missing this many frames in a row counts as a gap. Counted in frames,
+   * not ms, so it works at any frame rate (the pose model may manage only ~5 fps on a slow laptop). */
+  maxNewMissedFrames: 2,
   /** Torso position is the median of this many recent frames, smoothing jitter and one-frame glitches. */
   smoothFrames: 5,
   /** A fast drop: the torso center falls this many torso lengths... */
@@ -30,7 +31,7 @@ export const FALL_CONFIG = {
   confirmFastMs: 3000,
   /** ...and this long (ms) after going down slowly. */
   confirmSlowMs: 15_000,
-  /** A person missing this long (ms) counts as gone, not a tracking blip. */
+  /** A person missing this long (ms), and for at least 3 frames, counts as gone, not a tracking blip. */
   lostMs: 300,
   /** Gone through the bottom: last seen with the hips at least this far down the frame (0-1)... */
   bottomEdge: 0.75,
@@ -113,12 +114,19 @@ export class FallDetector {
   private readonly config: FallConfig;
   /** The person's poses within the drop window, for spotting fast drops. */
   private history: Sample[] = [];
+  /** The same window of raw (unsmoothed) poses, for judging a quick exit out of view. */
+  private rawHistory: Sample[] = [];
   /** Poses that could still be the standing height (a sliding-window minimum of y). */
   private standing: Sample[] = [];
   /** Raw poses since this one appeared, for debouncing and smoothing. */
   private recent: Sample[] = [];
   private rawLastAt: number | null = null;
   private presentSince = 0;
+  /** Frames in a row without a usable pose. */
+  private missedFrames = 0;
+  private lastT: number | null = null;
+  /** Typical time between frames (ms), a moving average. */
+  private frameMs = 33;
   /** When a person was last confirmed in view. */
   private lastSeenAt: number | null = null;
   private lastFastDropAt: number | null = null;
@@ -138,14 +146,20 @@ export class FallDetector {
   /** `t` in ms (e.g. performance.now()); `landmarks` is the first pose, or null if none. */
   update(t: number, landmarks: readonly PoseLandmark[] | null | undefined): FallStatus {
     const c = this.config;
+    // Clamped, so a pause (e.g. a hidden tab) doesn't skew the frame rate.
+    if (this.lastT !== null) this.frameMs += 0.1 * (Math.min(t - this.lastT, 1000) - this.frameMs);
+    this.lastT = t;
     const raw = landmarks ? toSample(t, landmarks, this.aspect, c.minVisibility) : null;
+    this.missedFrames = raw ? 0 : this.missedFrames + 1;
+    // A pose that hasn't proven itself yet starts over after a gap.
+    if (this.missedFrames >= c.maxNewMissedFrames && !this.isPresent()) this.rawLastAt = null;
     const sample = raw ? this.confirm(raw) : null;
     const status = () => ({ phase: this.phase, reason: this.reason, personInView: sample !== null });
     if (this.phase === "fallen") return status();
 
     let down: Down | null;
     if (sample) down = this.observe(sample);
-    else if (this.lastSeenAt !== null && t - this.lastSeenAt >= c.lostMs) down = this.ifLost;
+    else if (this.lastSeenAt !== null && t - this.lastSeenAt >= this.lostAfterMs()) down = this.ifLost;
     else return status(); // Brief tracking blip: no new information.
 
     if (!down) {
@@ -164,13 +178,20 @@ export class FallDetector {
     return status();
   }
 
+  /** Whether the current pose has been seen long enough to count as a person. */
+  private isPresent(): boolean {
+    return this.rawLastAt !== null && this.rawLastAt - this.presentSince >= this.config.minPresentMs;
+  }
+
+  /** How long a person can be missing before they count as gone: lostMs, but at least 3 frames. */
+  private lostAfterMs(): number {
+    return Math.max(this.config.lostMs, 3 * this.frameMs);
+  }
+
   /** The smoothed pose once it has been present long enough to be a person; null until then. */
   private confirm(raw: Sample): Sample | null {
     const c = this.config;
-    // Tolerate short tracking blips for a person, but not for a pose that hasn't proven itself yet.
-    const confirmed = this.rawLastAt !== null && this.rawLastAt - this.presentSince >= c.minPresentMs;
-    const maxGap = confirmed ? c.lostMs : c.maxNewGapMs;
-    if (this.rawLastAt === null || raw.t - this.rawLastAt >= maxGap) {
+    if (this.rawLastAt === null || raw.t - this.rawLastAt >= this.lostAfterMs()) {
       this.presentSince = raw.t;
       this.recent = [];
       // Someone (or something) newly in view: learn their standing height afresh,
@@ -179,12 +200,15 @@ export class FallDetector {
       // reappearing on the floor.
       if (this.downSince === null) {
         this.history = [];
+        this.rawHistory = [];
         this.standing = [];
         this.lastFastDropAt = null;
       }
     }
     this.rawLastAt = raw.t;
     this.recent.push(raw);
+    this.rawHistory.push(raw);
+    while (raw.t - this.rawHistory[0].t > c.dropWindowMs) this.rawHistory.shift();
     if (this.recent.length > c.smoothFrames) this.recent.shift();
     if (raw.t - this.presentSince < c.minPresentMs) return null;
     return {
@@ -217,19 +241,22 @@ export class FallDetector {
       return this.ifLost;
     }
     // Low in the view and below standing height: vanishing now means they went
-    // down below what the camera can see.
+    // down below what the camera can see. Judged on the latest raw pose, where
+    // they really were last: smoothing lags behind a quick exit, by up to a
+    // second at low frame rates.
+    const seen = this.recent.at(-1) ?? sample;
     this.ifLost =
-      sample.hipY >= c.bottomEdge && below >= c.exitBelowTorsoLengths
-        ? { reason: "out-of-frame", fast: fast || this.drop(sample) >= c.exitBelowTorsoLengths }
+      seen.hipY >= c.bottomEdge && (seen.y - standing.y) / standing.torso >= c.exitBelowTorsoLengths
+        ? { reason: "out-of-frame", fast: fast || this.drop(seen, this.rawHistory) >= c.exitBelowTorsoLengths }
         : null;
     return null;
   }
 
   /** How far `cur` is below the highest point of the drop window, in torso lengths. */
-  private drop(cur: Sample): number {
+  private drop(cur: Sample, window: Sample[] = this.history): number {
     // The largest torso in the window: it foreshortens as the person tips over.
-    const torso = Math.max(...this.history.map((s) => s.torso));
-    const top = Math.min(...this.history.map((s) => s.y));
+    const torso = Math.max(...window.map((s) => s.torso));
+    const top = Math.min(...window.map((s) => s.y));
     return torso > 0 ? (cur.y - top) / torso : 0;
   }
 }

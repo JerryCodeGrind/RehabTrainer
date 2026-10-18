@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { AlertKind, AlertOutcome, AlertResult } from "@/lib/alert/server";
 import { FallDetector, type FallStatus } from "@/lib/fall/detector";
+import { syncFall } from "@/lib/rehab/sync";
 import type { PoseSource } from "./usePoseSource";
+
+// The alarm waits this long before calling, so "I'm OK" can cancel the call.
+const CALL_DELAY_MS = 20_000;
 
 const REASON_TEXT = {
   "on-floor": "Someone went down and hasn't gotten back up.",
@@ -42,12 +46,15 @@ async function postAlert(kind: AlertKind): Promise<AlertState> {
 }
 
 /**
- * Always-on fall detection over the app's shared pose stream, on every screen:
- * a status pill, the alarm screen with beeping, and one call and text to
- * ALERT_TO_NUMBER per alarm. Off in demo mode (keyboard poses aren't a person).
+ * Fall detection over the app's shared pose stream: a status pill, the alarm
+ * screen with beeping, and one call and text to ALERT_TO_NUMBER per alarm,
+ * unless "I'm OK" is pressed during the countdown before the call.
+ * It only watches while `active` (an exercise is on screen, with the camera on);
+ * it doesn't open the camera itself. An alarm that's already going off stays up
+ * until "I'm OK", whatever the screen.
  */
-export function FallGuard({ source }: { source: PoseSource }) {
-  const { subscribe, ensureCamera, demo, status, aspect } = source;
+export function FallGuard({ source, active }: { source: PoseSource; active: boolean }) {
+  const { subscribe, ensureCamera, status, aspect } = source;
   // Set to null to start over ("I'm OK"); the next frame makes a fresh one.
   const detectorRef = useRef<FallDetector | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
@@ -55,24 +62,27 @@ export function FallGuard({ source }: { source: PoseSource }) {
   const [hidden, setHidden] = useState(false);
   const [testAlert, setTestAlert] = useState<AlertState | null>(null);
   const [fallAlert, setFallAlert] = useState<AlertState | null>(null);
-
-  // Watch from the moment the app opens, not just during exercises.
-  useEffect(() => {
-    if (!demo) void ensureCamera();
-  }, [demo, ensureCamera]);
+  // When the alarm's call goes out (Date.now() ms), unless "I'm OK" cancels it first.
+  const [callAt, setCallAt] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
-    if (demo) return;
     detectorRef.current = null;
+    // Off between exercises. A stale status isn't shown (`current` needs `running`),
+    // and the next exercise starts a fresh detector; only an alarm carries over.
+    if (!active) return;
     let last: FallStatus | null = null;
     return subscribe((frame, t) => {
       detectorRef.current ??= new FallDetector(aspect);
       const next = detectorRef.current.update(t, frame?.draw ?? null);
 
-      // Call and text the contact once, when the alarm goes off.
+      // The alarm starts the countdown to the call; the fall is recorded either way.
       if (next.phase === "fallen" && last?.phase !== "fallen") {
-        setFallAlert({ state: "sending", text: "Alerting your contact…" });
-        void postAlert("fall").then(setFallAlert);
+        const t = Date.now();
+        setNow(t);
+        setCallAt(t + CALL_DELAY_MS);
+        setFallAlert(null);
+        syncFall(next.reason);
       }
 
       // Only re-render when something visible changes.
@@ -81,9 +91,9 @@ export function FallGuard({ source }: { source: PoseSource }) {
         setFall(next);
       }
     });
-  }, [subscribe, demo, aspect]);
+  }, [subscribe, aspect, active]);
 
-  const running = !demo && status === "ready";
+  const running = active && status === "ready";
 
   // Detection pauses when the tab is hidden, so keep the screen awake and say so.
   useEffect(() => {
@@ -122,7 +132,8 @@ export function FallGuard({ source }: { source: PoseSource }) {
   }, [running]);
 
   const current = running ? fall : null;
-  const alarming = current?.phase === "fallen";
+  // Not tied to `running`: the alarm stays up even if the camera goes off.
+  const alarming = fall?.phase === "fallen";
 
   // Beep until someone presses "I'm OK". Browsers allow the sound once the
   // page has had a click or key press.
@@ -144,6 +155,21 @@ export function FallGuard({ source }: { source: PoseSource }) {
     return () => clearInterval(id);
   }, [alarming]);
 
+  // Count down, then call and text the contact. "I'm OK" clears callAt, which stops this.
+  useEffect(() => {
+    if (callAt === null) return;
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t < callAt) return;
+      clearInterval(id);
+      setCallAt(null);
+      setFallAlert({ state: "sending", text: "Alerting your contact…" });
+      void postAlert("fall").then(setFallAlert);
+    }, 250);
+    return () => clearInterval(id);
+  }, [callAt]);
+
   useEffect(
     () => () => {
       void audioRef.current?.close();
@@ -153,18 +179,19 @@ export function FallGuard({ source }: { source: PoseSource }) {
   );
 
   const dismiss = () => {
+    setCallAt(null); // Cancels the call if it hasn't gone out yet.
     detectorRef.current = null;
     setFall(null);
   };
+  const secondsLeft = callAt === null ? null : Math.max(0, Math.ceil((callAt - now) / 1000));
 
   const sendTestAlert = async () => {
     setTestAlert({ state: "sending", text: "Sending test alert…" });
     setTestAlert(await postAlert("test"));
   };
 
-  const statusText = demo
-    ? "Fall detection off in demo mode"
-    : status === "error"
+  const statusText =
+    status === "error"
       ? "Fall detection off: camera unavailable"
       : !running
         ? "Starting fall detection…"
@@ -184,7 +211,8 @@ export function FallGuard({ source }: { source: PoseSource }) {
 
   return (
     <>
-      <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex max-w-md flex-col items-end gap-2">
+      {/* The status pill (and test alert) only show during exercises. */}
+      <div className={`pointer-events-none fixed right-4 bottom-4 z-40 max-w-md flex-col items-end gap-2 ${active ? "flex" : "hidden"}`}>
         {testAlert ? (
           <p
             role="status"
@@ -198,7 +226,7 @@ export function FallGuard({ source }: { source: PoseSource }) {
         <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-black/80 py-1.5 pr-1.5 pl-4 text-sm text-white shadow-lg backdrop-blur">
           <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
           <span aria-live="polite">{statusText}</span>
-          {status === "error" && !demo ? (
+          {status === "error" ? (
             <button type="button" onClick={() => void ensureCamera()} className="rounded-full bg-white px-3 py-1.5 font-semibold text-black hover:bg-zinc-200">
               Try again
             </button>
@@ -224,9 +252,15 @@ export function FallGuard({ source }: { source: PoseSource }) {
             Fall detected
           </h2>
           <p className="max-w-xl text-2xl text-red-50">
-            {current?.reason ? REASON_TEXT[current.reason] : null}
+            {fall?.reason ? REASON_TEXT[fall.reason] : null}
           </p>
-          {fallAlert ? (
+          {secondsLeft !== null ? (
+            <p role="status" className="max-w-2xl text-2xl text-red-50">
+              Calling your contact in <span className="font-bold tabular-nums">{secondsLeft} s</span>.
+              <br />
+              Press <span className="font-bold">I&apos;m OK</span> if you don&apos;t need help.
+            </p>
+          ) : fallAlert ? (
             <p role="status" className="max-w-2xl text-xl text-red-50">
               {fallAlert.state === "ok" ? "Your contact has been called and texted." : fallAlert.text}
             </p>

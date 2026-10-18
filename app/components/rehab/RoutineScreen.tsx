@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
-import { DEMO_KEYS } from "@/lib/rehab/demo";
 import type { GestureState } from "@/lib/rehab/gesture";
 import { missingPhrase, RoutineRunner, type RunnerView } from "@/lib/rehab/runner";
 import type { RoutineId, Summary } from "@/lib/rehab/routines/types";
@@ -37,7 +36,7 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
   const lastRender = useRef(0);
   const info = runner.routine.info;
   const {
-    ensureCamera, resetDemo, subscribe, demo, status, error, canvasRef,
+    ensureCamera, subscribe, status, error, canvasRef,
     autoFrame, setAutoFrame, setFramingHint, getZoom, aspect,
     gestureStart, setGestureStart, gestureError, setGestureActive, subscribeGesture, subscribeGestureDiag, setGestureLogging,
   } = source;
@@ -62,9 +61,8 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
 
   // Show the live preview as soon as the screen opens, so people can get in position.
   useEffect(() => {
-    if (!demo) void ensureCamera();
-  }, [demo, ensureCamera]);
-  useEffect(() => resetDemo(), [resetDemo]);
+    void ensureCamera();
+  }, [ensureCamera]);
   // Leave framing unlocked and zoomable for whatever screen comes next.
   useEffect(() => () => setFramingHint({ fullFrame: false, lock: false }), [setFramingHint]);
 
@@ -91,7 +89,7 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
   useEffect(() => subscribe((frame, t) => onFrame(frame, t)), [subscribe]);
 
 
-  const cameraReady = demo || status === "ready";
+  const cameraReady = status === "ready";
   // Framing check: Start only unlocks once every required joint is visible.
   const canStart = cameraReady && view.inView;
 
@@ -190,7 +188,7 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
           >
             <canvas ref={canvasRef} className="absolute inset-0 h-full w-full -scale-x-100 object-contain" />
 
-            {!demo && status !== "ready" ? (
+            {status !== "ready" ? (
               <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-2xl">
                 {status === "error" ? (
                   <div className="flex flex-col items-center gap-4">
@@ -362,22 +360,6 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
               ) : null}
             </div>
           </details>
-
-          {demo ? (
-            <details open className="rounded-2xl bg-zinc-900 p-4 text-lg">
-              <summary className="cursor-pointer text-xl font-bold text-lime-400">Demo mode keys</summary>
-              <ul className="mt-3 flex flex-col gap-1">
-                {DEMO_KEYS.map((k) => (
-                  <li key={k.key}>
-                    <kbd className="rounded bg-zinc-700 px-2 py-0.5 font-mono">{k.key}</kbd> {k.action}
-                  </li>
-                ))}
-                <li>
-                  <kbd className="rounded bg-zinc-700 px-2 py-0.5 font-mono">`</kbd> Debug
-                </li>
-              </ul>
-            </details>
-          ) : null}
         </aside>
       </div>
     </div>

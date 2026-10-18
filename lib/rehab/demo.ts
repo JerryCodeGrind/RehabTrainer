@@ -1,6 +1,7 @@
-// Keyboard-driven synthetic pose, so the screens and rep logic can be tested
-// without a camera. Produces MediaPipe-shaped landmarks (x, y in 0..1) for a
-// 16:9 frame. Also used by the Node simulation test.
+// Synthetic pose for the Node simulation tests (scripts/test-rehab.mjs), so the
+// rep logic can be tested without a camera. Driven by key presses (DEMO_KEYS);
+// produces MediaPipe-shaped landmarks (x, y in 0..1) for a 16:9 frame. The app
+// itself always uses the camera.
 
 import type { RawLandmark, Side } from "./pose";
 

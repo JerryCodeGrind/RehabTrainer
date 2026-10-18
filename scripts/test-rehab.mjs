@@ -20,6 +20,7 @@ const { PoseSmoother } = await import("../lib/rehab/pose.ts");
 const { DemoPose, DEMO_ASPECT } = await import("../lib/rehab/demo.ts");
 const { RoutineRunner } = await import("../lib/rehab/runner.ts");
 const { streak, completedToday } = await import("../lib/rehab/storage.ts");
+const { bodyHealth, strongestMuscle, needsWork } = await import("../lib/rehab/health.ts");
 const { AutoFramer } = await import("../lib/rehab/framing.ts");
 const { StartGestureTrigger, handCrops, raisedHand, gestureScale } = await import("../lib/rehab/gesture.ts");
 
@@ -383,6 +384,44 @@ check("streak counts consecutive days", () => {
   assert.equal(streak([day(1), day(2)], now), 2);
   assert.equal(streak([day(3)], now), 0);
   assert.deepEqual([...completedToday([day(0), day(1)], now)], ["walk"]);
+});
+
+check("muscle health: weaker side flagged, balance counts for the standing leg, trends", () => {
+  const now = new Date(2026, 9, 17, 18);
+  const at = (daysAgo) => new Date(now.getTime() - daysAgo * 86_400_000).toISOString();
+  const marching = (daysAgo, left, right) => ({
+    routineId: "marching", reps: 20, target: 20, finishedAt: at(daysAgo),
+    data: { peaksLeft: Array(10).fill(left), peaksRight: Array(10).fill(right) },
+  });
+  const muscles = bodyHealth([marching(1, 0.45, 0.8), marching(3, 0.45, 0.8)], now);
+  const get = (list, id) => list.find((m) => m.id === id);
+  assert.equal(get(muscles, "hipFlexors-right").level, "good");
+  assert.equal(get(muscles, "hipFlexors-left").level, "fair", "a clearly weaker side is never strong");
+  assert.match(get(muscles, "hipFlexors-left").notes[0], /Weaker than your right side/);
+  assert.equal(get(muscles, "arms").tracked, false);
+  assert.equal(get(muscles, "quads-left").level, "none");
+  assert.equal(strongestMuscle(muscles).id, "hipFlexors-right");
+  assert.deepEqual(needsWork(muscles).map((m) => m.id), ["hipFlexors-left"]);
+  assert.equal(get(bodyHealth([marching(40, 0.8, 0.8)], now), "hipFlexors-left").level, "none", "old sessions drop out");
+
+  // Lifting the left foot means balancing on the right leg.
+  const balance = {
+    routineId: "singleLeg", reps: 6, target: 6, finishedAt: at(0),
+    data: { left: { holds: 3, longestMs: 10_000, sway: [0.01] }, right: { holds: 1, longestMs: 2_000, sway: [0.06] } },
+  };
+  const b = bodyHealth([balance], now);
+  assert.ok(get(b, "calves-right").score > get(b, "calves-left").score);
+  assert.ok(get(b, "abductors-right").score > get(b, "abductors-left").score);
+  assert.ok(get(b, "core").score !== null);
+
+  // Sit-to-stands score both sides the same, so they never flag a weaker side.
+  const sts = bodyHealth([{ routineId: "sitToStand", reps: 10, target: 10, finishedAt: at(0), data: { avgDescentSec: 2 } }], now);
+  assert.equal(get(sts, "quads-left").score, get(sts, "quads-right").score);
+  assert.equal(get(sts, "glutes-left").level, "good");
+
+  // A drop this week shows as a downward trend.
+  const trend = bodyHealth([marching(1, 0.3, 0.3), marching(14, 0.8, 0.8)], now);
+  assert.equal(get(trend, "hipFlexors-left").trend, "down");
 });
 
 console.log("All rehab simulations passed.");

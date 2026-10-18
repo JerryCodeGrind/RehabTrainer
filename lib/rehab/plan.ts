@@ -15,6 +15,8 @@ export interface PlanChoice {
 }
 
 export interface CarePlan extends PlanChoice {
+  /** The plan's document in MongoDB, or null if it wasn't saved there. */
+  planId: string | null;
   fileName: string;
   /** ISO timestamp. */
   createdAt: string;

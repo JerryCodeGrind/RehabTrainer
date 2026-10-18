@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   experimental: {
     agentFeedback: true,
   },
+  // The dev-only "N" badge defaults to bottom-left, on top of the sidebar's profile picture.
+  devIndicators: { position: "top-right" },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

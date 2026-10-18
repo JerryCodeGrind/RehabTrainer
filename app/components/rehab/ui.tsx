@@ -11,6 +11,12 @@ export const BTN_GHOST =
 export const BTN_STOP =
   "min-h-16 rounded-2xl bg-red-600 px-8 text-2xl font-bold text-white shadow-lg transition-colors hover:bg-red-500 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-white";
 
+// Compact controls for the dashboard pages; exercise screens keep the large ones above.
+export const BTN_PRIMARY_SM =
+  "min-h-12 rounded-xl bg-lime-400 px-5 text-lg font-semibold text-black transition-colors hover:bg-lime-300 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-50";
+export const BTN_GHOST_SM =
+  "min-h-11 rounded-xl border border-zinc-600 px-4 text-base font-semibold text-white transition-colors hover:border-white hover:bg-zinc-800 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-lime-400 disabled:opacity-50";
+
 const GOAL_COLOR: Record<Goal, string> = {
   Strength: "bg-orange-300 text-black",
   Mobility: "bg-sky-300 text-black",
@@ -21,7 +27,7 @@ const GOAL_COLOR: Record<Goal, string> = {
 
 export function GoalChip({ goal }: { goal: Goal }) {
   return (
-    <span className={`inline-block rounded-full px-4 py-1 text-lg font-bold ${GOAL_COLOR[goal]}`}>{goal}</span>
+    <span className={`inline-block rounded-full px-3 py-0.5 text-sm font-bold ${GOAL_COLOR[goal]}`}>{goal}</span>
   );
 }
 
@@ -40,7 +46,7 @@ export function ProgressBar({ value, target, label }: { value: number; target?: 
 }
 
 export function Screen({ children }: { children: ReactNode }) {
-  return <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">{children}</main>;
+  return <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8 sm:px-10 sm:py-10">{children}</main>;
 }
 
 export function formatDuration(ms: number): string {

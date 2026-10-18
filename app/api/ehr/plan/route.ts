@@ -1,7 +1,11 @@
+import { getDb } from "@/lib/db/server";
+import { resolveUserId } from "@/lib/db/user";
 import { choosePlan, EhrError, MAX_PDF_BYTES, pdfText } from "@/lib/ehr/server";
 
-// Takes the health record PDF as multipart form field "file" and returns
-// today's exercise plan (PlanChoice). The record is not stored.
+// Takes the health record PDF as multipart form field "file" (plus "userId",
+// which a signed-in account overrides)
+// and returns today's exercise plan (PlanChoice) with the `planId` it was saved
+// under, or null if the database is unavailable. The record itself is not stored.
 export async function POST(request: Request) {
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
@@ -23,7 +27,18 @@ export async function POST(request: Request) {
         422,
       );
     }
-    return Response.json(await choosePlan(text));
+    const plan = await choosePlan(text);
+    let planId: string | null = null;
+    const userId = await resolveUserId(form?.get("userId"));
+    if (userId) {
+      try {
+        const db = await getDb();
+        planId = (await db.collection("plans").insertOne({ userId, createdAt: new Date(), ...plan })).insertedId.toHexString();
+      } catch (err) {
+        console.error("[db] plan not saved:", err instanceof Error ? err.message : err);
+      }
+    }
+    return Response.json({ ...plan, planId });
   } catch (err) {
     if (err instanceof EhrError) return Response.json({ message: err.message }, { status: err.status });
     console.error("[ehr]", err);

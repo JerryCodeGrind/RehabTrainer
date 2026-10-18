@@ -1,7 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { IconBodyScan, IconHistory, IconHome } from "@tabler/icons-react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { AccountFooter } from "../dashboard/AccountFooter";
+import { Sidebar, type NavItem } from "../dashboard/Sidebar";
 import { planStore } from "@/lib/rehab/plan";
+import { syncSession } from "@/lib/rehab/sync";
 import { routineInfo } from "@/lib/rehab/routines/index";
 import type { RoutineId } from "@/lib/rehab/routines/types";
 import { SETTINGS } from "@/lib/rehab/settings";
@@ -15,21 +19,31 @@ import {
   type SessionRecord,
 } from "@/lib/rehab/storage";
 import { EhrUploadScreen } from "./EhrUploadScreen";
+import { ExerciseHistory } from "./ExerciseHistory";
 import { FallGuard } from "./FallGuard";
+import { MyHealth } from "./MyHealth";
 import { RoutineScreen, type RoutineResult } from "./RoutineScreen";
-import { BreakScreen, FinishScreen, HomeScreen, ProgressScreen, SessionCompleteScreen } from "./screens";
+import { BreakScreen, FinishScreen, HomeScreen, SessionCompleteScreen } from "./screens";
+import { Screen } from "./ui";
 import { usePoseSource } from "./usePoseSource";
 
 type ScreenState =
   | { name: "home" }
   | { name: "upload" }
-  | { name: "progress" }
+  | { name: "health" | "history" }
   | { name: "routine"; id: RoutineId; note?: string; run: number }
   | { name: "finish"; recordId: string }
   | { name: "break"; fromId: RoutineId; hard: boolean }
   | { name: "complete" };
 
 const noopSubscribe = () => () => {};
+
+type Section = "today" | "health" | "history";
+const NAV: NavItem<Section>[] = [
+  { id: "today", label: "Today", icon: IconHome },
+  { id: "health", label: "Health", icon: IconBodyScan },
+  { id: "history", label: "History", icon: IconHistory },
+];
 
 /** Next routine in today's plan after `from` that isn't done today, plus the ones skipped on the way. */
 function planNext(order: RoutineId[], from: RoutineId | null, done: Set<RoutineId>) {
@@ -92,12 +106,28 @@ export default function RehabApp() {
       data: r.summary.data,
     };
     saveSession(record);
+    syncSession(record, plan?.planId);
     setScreen({ name: "finish", recordId: record.id });
   };
 
   let content;
   // Plans and dates live in browser storage, so render nothing until hydrated.
   if (!hydrated) content = null;
+  else if (screen.name === "health")
+    content = (
+      <Screen>
+        <h1 className="text-5xl font-bold tracking-tight">Health</h1>
+        <MyHealth onStartRoutine={(id) => openRoutine(id)} />
+      </Screen>
+    );
+  else if (screen.name === "history")
+    content = (
+      <Screen>
+        <h1 className="text-5xl font-bold tracking-tight">History</h1>
+        <ExerciseHistory />
+      </Screen>
+    );
+  // New accounts start on the health record upload, until a plan exists.
   else if (!plan) content = <EhrUploadScreen onDone={home} />;
   else switch (screen.name) {
     case "upload":
@@ -110,16 +140,10 @@ export default function RehabApp() {
           onNewRecord={() => setScreen({ name: "upload" })}
           doneToday={doneToday}
           streak={streak}
-          demo={source.demo}
-          onDemo={source.setDemo}
           onOpen={(id) => openRoutine(id)}
           onStartSession={() => goNext(null)}
-          onProgress={() => setScreen({ name: "progress" })}
         />
       );
-      break;
-    case "progress":
-      content = <ProgressScreen sessions={sessions} onHome={home} />;
       break;
     case "routine":
       content = (
@@ -145,7 +169,10 @@ export default function RehabApp() {
         <FinishScreen
           record={record}
           nextId={planNext(order, record.routineId, doneToday).next}
-          onFeeling={(f) => setFeeling(record.id, f)}
+          onFeeling={(f) => {
+            setFeeling(record.id, f);
+            syncSession({ ...record, feeling: f }, plan?.planId);
+          }}
           onNext={() => goNext(record.routineId)}
           onBreak={() => setScreen({ name: "break", fromId: record.routineId, hard: record.feeling === "hard" })}
           onAgain={() => openRoutine(record.routineId)}
@@ -169,16 +196,29 @@ export default function RehabApp() {
       break;
   }
 
+  // The camera, pose tracking and fall detection only run during an exercise.
+  const exercising = hydrated && plan !== null && screen.name === "routine";
+  const { releaseCamera } = source;
+  useEffect(() => {
+    if (!exercising) releaseCamera();
+  }, [exercising, releaseCamera]);
+
+  const section: Section = screen.name === "health" || screen.name === "history" ? screen.name : "today";
+  const navigate = (to: Section) => setScreen(to === "today" ? { name: "home" } : { name: to });
+
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-zinc-950 text-white">
-      {source.demo ? (
-        <p className="bg-lime-400 px-4 py-2 text-center text-lg font-bold text-black">Demo mode: keyboard controls, no camera</p>
-      ) : null}
-      {content}
-      {/* The camera feed for pose tracking. Kept mounted on every screen so fall
-          detection always runs; routine screens draw it through their canvas. */}
+    <div className="flex min-h-dvh flex-1 flex-col bg-zinc-950 text-white md:flex-row">
+      <Sidebar
+        items={NAV}
+        active={section}
+        onSelect={navigate}
+        footer={(open) => <AccountFooter open={open} />}
+      />
+      <div className="min-w-0 flex-1">{content}</div>
+      {/* The camera feed for pose tracking, kept mounted so the stream survives screen
+          changes; it's only on during exercises. Routine screens draw it through their canvas. */}
       <video ref={videoRef} className="pointer-events-none fixed top-0 left-0 h-px w-px opacity-0" playsInline muted />
-      <FallGuard source={source} />
+      <FallGuard source={source} active={exercising} />
     </div>
   );
 }

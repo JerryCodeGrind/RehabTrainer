@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import type { CarePlan } from "@/lib/rehab/plan";
-import { ROUTINE_ORDER, routineInfo } from "@/lib/rehab/routines/index";
+import { routineInfo } from "@/lib/rehab/routines/index";
 import type { RoutineId } from "@/lib/rehab/routines/types";
 import { SETTINGS } from "@/lib/rehab/settings";
 import type { Feeling, SessionRecord } from "@/lib/rehab/storage";
-import { BTN_GHOST, BTN_PRIMARY, BTN_SECONDARY, formatDuration, GoalChip, Screen } from "./ui";
+import { BTN_GHOST, BTN_GHOST_SM, BTN_PRIMARY, BTN_PRIMARY_SM, BTN_SECONDARY, formatDuration, GoalChip, Screen } from "./ui";
 
 const info = (id: RoutineId) => routineInfo(id, SETTINGS);
 
@@ -15,30 +15,24 @@ export function HomeScreen({
   onNewRecord,
   doneToday,
   streak,
-  demo,
-  onDemo,
   onOpen,
   onStartSession,
-  onProgress,
 }: {
   plan: CarePlan;
   onNewRecord: () => void;
   doneToday: Set<RoutineId>;
   streak: number;
-  demo: boolean;
-  onDemo: (on: boolean) => void;
   onOpen: (id: RoutineId) => void;
   onStartSession: () => void;
-  onProgress: () => void;
 }) {
   const routines = plan.routines;
   const count = routines.filter((id) => doneToday.has(id)).length;
   return (
     <Screen>
-      <header className="flex flex-col gap-3">
-        <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">Home Rehab</h1>
-        <p className="text-2xl text-zinc-300">
-          {count} of {routines.length} exercises done today
+      <header className="flex flex-col gap-1">
+        <h1 className="text-4xl font-bold tracking-tight">Today</h1>
+        <p className="text-lg text-zinc-400">
+          {count} of {routines.length} exercises done
           {" · "}
           <span className="font-semibold text-lime-300">
             {streak} day{streak === 1 ? "" : "s"} in a row
@@ -46,31 +40,26 @@ export function HomeScreen({
         </p>
       </header>
 
-      <section className="flex flex-col gap-4 rounded-3xl bg-zinc-900 p-6">
-        <p className="text-lg text-zinc-400">Chosen for you from {plan.fileName}</p>
-        <p className="text-2xl">{plan.summary}</p>
+      <section className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+        <p className="text-sm text-zinc-500">Chosen for you from {plan.fileName}</p>
+        <p className="text-lg leading-relaxed text-zinc-200">{plan.summary}</p>
         {routines.length === 0 ? (
-          <p className="text-2xl font-semibold text-yellow-300">
+          <p className="text-lg font-semibold text-yellow-300">
             None of these exercises look right for you today. Check with your care team before exercising.
           </p>
         ) : null}
-        <button onClick={onNewRecord} className={`${BTN_GHOST} self-start`}>
+        <button onClick={onNewRecord} className={`${BTN_GHOST_SM} self-start`}>
           Upload a new health record
         </button>
       </section>
 
-      <div className="flex flex-wrap gap-4">
-        {routines.length > 0 ? (
-          <button onClick={onStartSession} className={BTN_PRIMARY}>
-            {count === 0 ? "Start today's session" : count < routines.length ? "Continue today's session" : "Today's session is done ✓"}
-          </button>
-        ) : null}
-        <button onClick={onProgress} className={BTN_SECONDARY}>
-          Progress
+      {routines.length > 0 ? (
+        <button onClick={onStartSession} className={`${BTN_PRIMARY_SM} self-start`}>
+          {count === 0 ? "Start today's session" : count < routines.length ? "Continue today's session" : "Today's session is done ✓"}
         </button>
-      </div>
+      ) : null}
 
-      <ul className="grid gap-5 md:grid-cols-2">
+      <ul className="grid gap-4 md:grid-cols-2">
         {routines.map((id, i) => {
           const r = info(id);
           const done = doneToday.has(id);
@@ -78,18 +67,18 @@ export function HomeScreen({
             <li key={id}>
               <button
                 onClick={() => onOpen(id)}
-                className={`flex h-full w-full flex-col gap-3 rounded-3xl border-4 p-6 text-left transition-colors hover:bg-zinc-800 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-lime-400 ${
-                  done ? "border-lime-400 bg-zinc-900" : "border-zinc-700 bg-zinc-900"
+                className={`flex h-full w-full flex-col gap-2 rounded-2xl border-2 p-5 text-left transition-colors hover:bg-zinc-800 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-lime-400 ${
+                  done ? "border-lime-400 bg-zinc-900" : "border-zinc-800 bg-zinc-900"
                 }`}
               >
-                <span className="text-xl text-zinc-400">Exercise {i + 1}</span>
-                <span className="text-3xl font-bold">{r.name}</span>
-                <span className="flex flex-wrap items-center gap-3">
+                <span className="text-sm text-zinc-500">Exercise {i + 1}</span>
+                <span className="text-2xl font-bold">{r.name}</span>
+                <span className="flex flex-wrap items-center gap-2">
                   <GoalChip goal={r.goal} />
-                  <span className="text-xl text-zinc-200">{r.target}</span>
+                  <span className="text-base text-zinc-300">{r.target}</span>
                 </span>
-                {plan.reasons[id] ? <span className="text-xl text-zinc-300">{plan.reasons[id]}</span> : null}
-                <span className={`text-2xl font-semibold ${done ? "text-lime-300" : "text-zinc-400"}`}>
+                {plan.reasons[id] ? <span className="text-base leading-relaxed text-zinc-400">{plan.reasons[id]}</span> : null}
+                <span className={`mt-1 text-base font-semibold ${done ? "text-lime-300" : "text-zinc-500"}`}>
                   {done ? "✓ Done today" : "Not done yet today"}
                 </span>
               </button>
@@ -97,11 +86,6 @@ export function HomeScreen({
           );
         })}
       </ul>
-
-      <label className="flex cursor-pointer items-center gap-4 self-start rounded-2xl bg-zinc-900 p-4 text-xl">
-        <input type="checkbox" checked={demo} onChange={(e) => onDemo(e.target.checked)} className="h-7 w-7 accent-lime-400" />
-        Demo mode: test with the keyboard instead of the camera
-      </label>
     </Screen>
   );
 }
@@ -285,49 +269,6 @@ export function SessionCompleteScreen({
       <button onClick={onHome} className={`${BTN_PRIMARY} self-center`}>
         Back to home
       </button>
-    </Screen>
-  );
-}
-
-const FEELING_LABEL: Record<Feeling, string> = { easy: "Easy", right: "Just right", hard: "Hard" };
-
-export function ProgressScreen({ sessions, onHome }: { sessions: SessionRecord[]; onHome: () => void }) {
-  return (
-    <Screen>
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-5xl font-bold tracking-tight">Progress</h1>
-        <button onClick={onHome} className={BTN_GHOST}>← Home</button>
-      </header>
-      {ROUTINE_ORDER.map((id) => {
-        const recent = sessions.filter((s) => s.routineId === id).slice(-5).reverse();
-        return (
-          <section key={id} className="rounded-3xl bg-zinc-900 p-6">
-            <h2 className="flex flex-wrap items-center gap-3 text-3xl font-bold">
-              {info(id).name} <GoalChip goal={info(id).goal} />
-            </h2>
-            {recent.length === 0 ? (
-              <p className="mt-3 text-xl text-zinc-400">No sessions yet.</p>
-            ) : (
-              <ul className="mt-4 flex flex-col divide-y divide-zinc-700">
-                {recent.map((s) => (
-                  <li key={s.id} className="flex flex-col gap-1 py-3 text-xl">
-                    <span className="font-semibold">
-                      {new Date(s.finishedAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                    </span>
-                    <span className="text-zinc-300">
-                      {s.reps} of {s.target} · {formatDuration(s.durationMs)}
-                      {s.feeling ? ` · felt ${FEELING_LABEL[s.feeling].toLowerCase()}` : ""}
-                    </span>
-                    <span className="text-lg text-zinc-400">
-                      {s.metrics.slice(0, 3).map((m) => `${m.label}: ${m.value}`).join(" · ")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        );
-      })}
     </Screen>
   );
 }

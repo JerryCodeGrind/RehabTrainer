@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FilesetResolver, GestureRecognizer, PoseLandmarker } from "@mediapipe/tasks-vision";
-import { DEMO_ASPECT, DemoPose } from "@/lib/rehab/demo";
 import { AutoFramer, toCrop, type Crop, type FramingHint } from "@/lib/rehab/framing";
 import {
   gestureScale,
@@ -27,7 +26,6 @@ const GESTURE_MODEL_URL =
 const AUTO_FRAME_KEY = "rehab.autoFrame";
 const GESTURE_KEY = "rehab.gestureStart";
 const IDLE_GESTURE: GestureState = { progress: 0, handVisible: false, fired: false, kind: null };
-const DEMO_SIZE = { width: 1280, height: 720 };
 
 export type CameraStatus = "off" | "loading" | "ready" | "error";
 export type FrameListener = (frame: PoseFrame | null, t: number) => void;
@@ -161,19 +159,14 @@ async function openCamera(): Promise<MediaStream> {
   }
 }
 
-/** Draws the cropped camera picture (or a blank demo background) and the
- * skeleton, with landmarks mapped through the crop so they line up. The canvas
- * is unmirrored; CSS mirrors it like a selfie view. */
-function drawView(ctx: CanvasRenderingContext2D, video: HTMLVideoElement | null, crop: Crop, frame: PoseFrame | null) {
+/** Draws the cropped camera picture and the skeleton, with landmarks mapped
+ * through the crop so they line up. The canvas is unmirrored; CSS mirrors it
+ * like a selfie view. */
+function drawView(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, crop: Crop, frame: PoseFrame | null) {
   const { width: w, height: h } = ctx.canvas;
-  if (video) {
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    ctx.drawImage(video, crop.x * vw, crop.y * vh, crop.w * vw, crop.h * vh, 0, 0, w, h);
-  } else {
-    ctx.fillStyle = "#18181b";
-    ctx.fillRect(0, 0, w, h);
-  }
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  ctx.drawImage(video, crop.x * vw, crop.y * vh, crop.w * vw, crop.h * vh, 0, 0, w, h);
   if (!frame) return;
   const pts = frame.draw.map((p) => ({ ...toCrop(p, crop), v: p.visibility }));
   const ok = (i: number) => pts[i].v > SETTINGS.pose.minVisibility;
@@ -225,28 +218,28 @@ function writeFlag(key: string, on: boolean) {
 }
 
 /**
- * Owns the one camera stream and pose model for the whole app, plus the
- * keyboard demo pose and auto-framing. Video and canvas elements attach through
- * callback refs, so routine screens can mount and unmount without reopening the camera.
+ * Owns the one camera stream and pose model for the whole app, plus
+ * auto-framing. Video and canvas elements attach through callback refs. The
+ * camera is only on during exercises: routine screens call ensureCamera(), and
+ * RehabApp calls releaseCamera() on every other screen.
  */
 export function usePoseSource() {
   const [status, setStatus] = useState<CameraStatus>("off");
   const [error, setError] = useState<string | null>(null);
-  const [demo, setDemoState] = useState(false);
   const [autoFrame, setAutoFrameState] = useState(() => readFlag(AUTO_FRAME_KEY, SETTINGS.framing.enabledByDefault));
   const [gestureStart, setGestureStartState] = useState(() => readFlag(GESTURE_KEY, SETTINGS.gesture.enabledByDefault));
   // Set if the gesture model can't load; the Start button still works.
   const [gestureError, setGestureError] = useState<string | null>(null);
   // Width / height of the camera frame, so the view can match it (e.g. portrait phones).
   const [aspect, setAspect] = useState(16 / 9);
-  const demoRef = useRef(false);
-  const demoPose = useRef<DemoPose | null>(null);
   const listeners = useRef(new Set<FrameListener>());
   const video = useRef<HTMLVideoElement | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const landmarker = useRef<PoseLandmarker | null>(null);
   const opening = useRef(false);
+  // False once releaseCamera() runs, so a camera that finishes opening afterwards is closed again.
+  const wanted = useRef(false);
   const framer = useRef(new AutoFramer(SETTINGS.framing, SETTINGS.pose.minVisibility));
   const hint = useRef<FramingHint>({ enabled: autoFrame, fullFrame: false, lock: false });
   const gestureListeners = useRef(new Set<GestureListener>());
@@ -279,6 +272,7 @@ export function usePoseSource() {
 
   /** Opens the camera and loads the model the first time; later calls do nothing. */
   const ensureCamera = useCallback(async () => {
+    wanted.current = true;
     if (opening.current || stream.current) return;
     opening.current = true;
     setStatus("loading");
@@ -286,6 +280,11 @@ export function usePoseSource() {
     try {
       const [lm, s] = await Promise.all([landmarker.current ?? createLandmarker(), openCamera()]);
       landmarker.current = lm;
+      if (!wanted.current) {
+        s.getTracks().forEach((t) => t.stop());
+        setStatus("off");
+        return;
+      }
       stream.current = s;
       attachStream();
       setStatus("ready");
@@ -303,6 +302,16 @@ export function usePoseSource() {
     }
   }, [attachStream]);
 
+  /** Turns the camera off (the light goes out); the pose model stays loaded so
+   * the next ensureCamera() is quick. Pose frames stop until then. */
+  const releaseCamera = useCallback(() => {
+    wanted.current = false;
+    stream.current?.getTracks().forEach((t) => t.stop());
+    stream.current = null;
+    if (video.current) video.current.srcObject = null;
+    setStatus((s) => (s === "loading" ? s : "off"));
+  }, []);
+
   const videoRef = useCallback(
     (el: HTMLVideoElement | null) => {
       video.current = el;
@@ -312,17 +321,6 @@ export function usePoseSource() {
   );
   const canvasRef = useCallback((el: HTMLCanvasElement | null) => {
     canvas.current = el;
-  }, []);
-
-  const setDemo = useCallback((on: boolean) => {
-    demoRef.current = on;
-    if (on) demoPose.current = new DemoPose();
-    setDemoState(on);
-  }, []);
-
-  /** Back to a neutral standing demo pose, so one routine's pose doesn't leak into the next. */
-  const resetDemo = useCallback(() => {
-    if (demoRef.current) demoPose.current = new DemoPose();
   }, []);
 
   const setAutoFrame = useCallback((on: boolean) => {
@@ -358,7 +356,7 @@ export function usePoseSource() {
     trigger.current.reset();
     gestureListeners.current.forEach((fn) => fn(IDLE_GESTURE));
     // Load the model the first time it's needed, not at camera start.
-    if (on && !demoRef.current && !recognizer.current && !recognizerLoading.current) {
+    if (on && !recognizer.current && !recognizerLoading.current) {
       recognizerLoading.current = true;
       createGestureRecognizer()
         .then((r) => {
@@ -400,28 +398,11 @@ export function usePoseSource() {
     }
   }, []);
 
-  // Keyboard controls for the demo pose.
-  useEffect(() => {
-    if (!demo) return;
-    const down = (e: KeyboardEvent) => {
-      if (e.repeat || e.metaKey || e.ctrlKey || e.target instanceof HTMLInputElement) return;
-      if (demoPose.current?.keyDown(e.key)) e.preventDefault();
-    };
-    const up = (e: KeyboardEvent) => demoPose.current?.keyUp(e.key);
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, [demo]);
-
-  // One frame loop for the app's lifetime: camera or demo pose → smoother →
+  // One frame loop for the app's lifetime: camera → pose model → smoother →
   // framing → draw → listeners. Detection always runs on the full, uncropped frame.
   useEffect(() => {
     let raf = 0;
     let lastVideoTime = -1;
-    let lastDemo = demoRef.current;
     let lastAspect = 0;
     let lastGestureT = -Infinity;
     const canvases: RecognizerCanvases = {
@@ -442,26 +423,14 @@ export function usePoseSource() {
       raf = requestAnimationFrame(loop);
       const t = performance.now();
       const c = canvas.current;
-      if (demoRef.current !== lastDemo) {
-        lastDemo = demoRef.current;
-        smoother.reset();
-      }
-
-      let frame: PoseFrame | null;
-      let v: HTMLVideoElement | null = null;
-      let size = DEMO_SIZE;
-      if (demoRef.current && demoPose.current) {
-        frame = smoother.process(injectedPose.current ?? demoPose.current.frame(t), DEMO_ASPECT, t);
-      } else {
-        v = video.current;
-        const lm = landmarker.current;
-        if (!v || !lm || v.readyState < 2 || v.currentTime === lastVideoTime) return;
-        lastVideoTime = v.currentTime;
-        const detected = lm.detectForVideo(v, t).landmarks[0] ?? null;
-        const raw = injectedPose.current ?? detected;
-        size = { width: v.videoWidth, height: v.videoHeight };
-        frame = smoother.process(raw, size.width / size.height, t);
-      }
+      const v = video.current;
+      const lm = landmarker.current;
+      if (!v || !lm || v.readyState < 2 || v.currentTime === lastVideoTime) return;
+      lastVideoTime = v.currentTime;
+      const detected = lm.detectForVideo(v, t).landmarks[0] ?? null;
+      const raw = injectedPose.current ?? detected;
+      const size = { width: v.videoWidth, height: v.videoHeight };
+      const frame = smoother.process(raw, size.width / size.height, t);
       if (size.width / size.height !== lastAspect) {
         lastAspect = size.width / size.height;
         setAspect(lastAspect);
@@ -487,19 +456,15 @@ export function usePoseSource() {
         let raise: string;
         let hands: HandResult[] = [];
         let images: GestureDiag["images"] = [];
-        log("1 loop", t, { active, offReason: active ? null : gestureOffReason.current, demo: demoRef.current, injected: !!injectedPose.current });
-        log("2 state", t, { person, torso: frame?.torso ?? null, gestureScale: gestureScale(frame, SETTINGS.gesture), hasVideo: !!v, recognizerLoaded: !!recognizer.current, loading: recognizerLoading.current });
+        log("1 loop", t, { active, offReason: active ? null : gestureOffReason.current, injected: !!injectedPose.current });
+        log("2 state", t, { person, torso: frame?.torso ?? null, gestureScale: gestureScale(frame, SETTINGS.gesture), recognizerLoaded: !!recognizer.current, loading: recognizerLoading.current });
         if (!active) {
           rec = raise = gestureOffReason.current;
         } else if (!person) {
           rec = raise = "no person visible";
         } else {
           raise = "running";
-          if (demoRef.current && demoPose.current) {
-            rec = "running (demo: hold T)";
-            const up = demoPose.current.thumbsUp;
-            hands = [{ source: "demo", detected: true, top: up ? "Thumb_Up" : "None", topScore: up ? 0.95 : 0.9 }];
-          } else if (v && recognizer.current) {
+          if (recognizer.current) {
             rec = "running";
             // A recognizer failure must not stop the raise-hand check or the trigger below.
             try {
@@ -557,9 +522,6 @@ export function usePoseSource() {
   return {
     status,
     error,
-    demo,
-    setDemo,
-    resetDemo,
     autoFrame,
     setAutoFrame,
     gestureStart,
@@ -573,6 +535,7 @@ export function usePoseSource() {
     getZoom,
     aspect,
     ensureCamera,
+    releaseCamera,
     subscribe,
     videoRef,
     canvasRef,

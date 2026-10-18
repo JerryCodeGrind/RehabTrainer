@@ -24,3 +24,28 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Health page hologram: a light bar sweeping down, and the figures gently floating. */
+@theme {
+  --animate-holo-scan: holo-scan 5s linear infinite;
+  --animate-holo-float: holo-float 6s ease-in-out infinite;
+
+  @keyframes holo-scan {
+    from {
+      top: 0%;
+    }
+    to {
+      top: 100%;
+    }
+  }
+
+  @keyframes holo-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+}

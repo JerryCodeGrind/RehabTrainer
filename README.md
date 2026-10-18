@@ -2,11 +2,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, add your Roboflow API key (from [app.roboflow.com/settings/api](https://app.roboflow.com/settings/api)) to `.env.local`, which is gitignored:
-
-```bash
-ROBOFLOW_API_KEY=your_key_here
-```
+First, add your keys to `.env.local`, which is gitignored. Each section below lists the variables it needs
+(OpenAI, MongoDB, Google sign-in, Twilio).
 
 Then run the development server:
 
@@ -38,52 +35,14 @@ The home page is a full-body rehab tracker for people recovering from a stroke o
 | `lib/rehab/framing.ts` | Auto-framing: crops the displayed picture to follow the user. Detection always uses the full frame |
 | `lib/rehab/runner.ts` | Phases: ready → countdown → calibration → tracking → done |
 | `lib/rehab/storage.ts` | Session history in `localStorage`, today's status, streak |
-| `lib/rehab/demo.ts` | Keyboard-driven synthetic pose for testing without a camera |
+| `lib/rehab/demo.ts` | Synthetic pose for the Node simulation tests (the app always uses the camera) |
 | `app/components/rehab/` | Screens, plus `usePoseSource` (one shared camera and model) |
 
 - **Auto-framing:** on by default, toggled per device from the routine screen. The walk routine always shows the full frame.
 - **Gesture start:** on a routine screen, hold a thumbs-up for 1 s (MediaPipe Gesture Recognizer on crops around each hand) or raise a hand above your shoulder for 1.5 s (Pose only, works from far away). Toggle per device; the button still works. With debug on, a "Start gesture diagnostics" panel shows each stage, the console gets `[gesture]` logs (once per second per stage), and `window.rehabDebug.injectPose(landmarks)` replaces the pose model output for testing. Gestures only need the upper body; without visible hips, scale comes from shoulder width.
 - **Framing check:** Start Exercise unlocks only when every joint the routine needs is visible.
-- **Demo mode:** tick "Demo mode" on the home screen, then use the keys listed on each routine screen.
 - **Debug panel:** press `` ` `` or click "Debug" to see raw measurements and state.
-- **Logic tests:** `npm run test:rehab` runs every routine end to end on the demo pose in Node.
-
-## Roboflow: White Monster workflow (Task 1)
-
-Task 1 detects Monster Energy cans (one class, `monster_can`; RF-DETR small) live from the webcam using the Roboflow Workflow
-`eureka-qanyp/white-monster-vwhite-monster-1-rfdetr-small-t1-logic`, which wraps the inner workflow `white-monster` at confidence 0.4. Video is streamed over WebRTC with
-[`@roboflow/inference-sdk`](https://www.npmjs.com/package/@roboflow/inference-sdk); detections come back on a data channel
-and are drawn over the local camera view.
-
-| File | Role |
-| --- | --- |
-| `lib/roboflow/monsters.ts` | Workflow constants, `MonsterDetection`/`MonsterFrame` types, `parseMonsterPredictions()` (client + server) |
-| `lib/roboflow/server.ts` | Server only: `startMonsterStream()` (WebRTC session), `getTurnServers()`, `detectMonsters()` (single image over HTTP); timeouts, retries, `RoboflowError` |
-| `app/api/roboflow/webrtc/route.ts` | Signaling proxy for `connectors.withProxyUrl()`; the workflow is pinned server-side |
-| `app/api/roboflow/turn/route.ts` | TURN credentials for players behind strict NATs |
-| `lib/roboflow/useMonsterStream.ts` | React hook: `{ videoRef, status, frame, error, start, stop }` |
-| `app/components/MonsterCamera.tsx` | Mirrored camera view with detection boxes |
-
-The API key stays on the server. The browser only talks to `/api/roboflow/*`.
-
-The workflow has one output, `predictions`:
-
-```json
-{ "image": { "width": 640, "height": 800 },
-  "predictions": [{ "x": 0, "y": 0, "width": 0, "height": 0,
-                    "confidence": 0.0, "class": "monster_can", "class_id": 0, "detection_id": "…" }] }
-```
-
-`x`/`y` are the box **center** in pixels of the frame the model saw, which may be downscaled from the camera, so scale by `image.width`/`height`.
-With no detections, `image.width`/`height` come back `null`.
-
-(Values above are placeholders showing the shape.) The model is trained on a small dataset (68 images) and doesn't fire on the stock photo in `scripts/fixtures/`, so the smoke test checks the response shape, not recall.
-
-Smoke test (calls the real workflow over HTTP and opens a WebRTC session):
-
-```bash
-npm run smoke:roboflow
-```
+- **Logic tests:** `npm run test:rehab` runs every routine end to end on a synthetic pose in Node.
 
 ## Health record → today's exercises (ChatGPT)
 
@@ -113,7 +72,7 @@ says so.
 ## Fall detection
 
 Fall detection is always on: the app opens the camera at launch and watches on every screen (home, exercises, breaks),
-with a status pill in the bottom-right corner. It's off only in demo mode. It doesn't use a trained fall model: it
+with a status pill in the bottom-right corner. It doesn't use a trained fall model: it
 reuses the rehab tracker's MediaPipe Pose stream (`usePoseSource`), and `lib/fall/detector.ts` applies simple rules to the torso
 (the midpoint of the shoulders and hips). Distances are in torso lengths, so they work near and far from the camera.
 
@@ -159,6 +118,25 @@ only use Twilio's sample wording; that switches automatically once the account i
 `triggerAlert()` in `lib/alert/server.ts` (server-only) sends the call and SMS; `POST /api/alert/fall` and
 `POST /api/alert/test` run it, at most once a minute and once every 30 s respectively. It only ever contacts `ALERT_TO_NUMBER`, and rejects anything that isn't a full phone number
 (so never 911 or other emergency numbers). The result, or Twilio's error, is shown under the button.
+
+## Sign-in, database and My Health
+
+Sessions, plans and fall alarms are saved to MongoDB in the background (`lib/rehab/sync.ts` → `app/api/sessions`, `app/api/falls`; plans from `app/api/ehr/plan`);
+the app works the same without it, since history also stays in `localStorage`. Google sign-in is Auth.js (`auth.ts`) with
+JWT sessions; on sign-in the profile is upserted into `users`, and anything this device saved anonymously moves onto the
+account (`POST /api/account/claim`). Signed-in requests are saved under `google:<sub>`, taken from the session cookie,
+never from the request body.
+
+```bash
+MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/
+MONGODB_DB=rehab                  # optional; this is the default
+AUTH_SECRET=...                   # npx auth secret
+AUTH_GOOGLE_ID=...                # Google Cloud OAuth client; redirect URI
+AUTH_GOOGLE_SECRET=...            #   http://localhost:3000/api/auth/callback/google
+```
+
+The profile picture on the home screen opens a menu with **My Health** (a body map colored by recent exercise
+results, `lib/rehab/health.ts`) and **Exercise history** (exercises per day plus a list of past sessions).
 
 ## Learn More
 

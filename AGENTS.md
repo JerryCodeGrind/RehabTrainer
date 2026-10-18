@@ -29,20 +29,18 @@ Before the final response, run one reporting pass. If candidates remain, from th
 
 <!-- END:nextjs-agent-feedback -->
 
-## Roboflow integration
-
-- Live detection uses the Roboflow Workflow `eureka-qanyp/white-monster-vwhite-monster-1-rfdetr-small-t1-logic` (single class `monster_can`) over WebRTC via `@roboflow/inference-sdk`. See the README section "Roboflow: White Monster workflow".
-- `ROBOFLOW_API_KEY` is server-only (`.env.local`). Never use `connectors.withApiKey()` or a `NEXT_PUBLIC_` key in the browser. Go through `/api/roboflow/webrtc` and `/api/roboflow/turn`.
-- Workflow IDs, input and output names live in `lib/roboflow/monsters.ts`. Keep that file free of runtime imports (the smoke test loads it with Node type stripping), and use `import type` for type-only imports in `lib/roboflow/`.
-- Parse outputs with `parseMonsterPredictions()`, not ad-hoc field access.
-- Run `npm run smoke:roboflow` after changing anything in `lib/roboflow/` or the workflow itself.
-
 ## Fall monitor
 
-- Fall detection is always on: `app/components/rehab/FallGuard.tsx` (mounted in `RehabApp`) feeds the shared `usePoseSource` stream into the rules in `lib/fall/detector.ts`. The camera opens at app start and the one `<video>` lives in `RehabApp`, so poses flow on every screen; don't add another video element or pose model. No Roboflow, no trained fall model.
+- Fall detection is always on: `app/components/rehab/FallGuard.tsx` (mounted in `RehabApp`) feeds the shared `usePoseSource` stream into the rules in `lib/fall/detector.ts`. The camera opens at app start and the one `<video>` lives in `RehabApp`, so poses flow on every screen; don't add another video element or pose model. No trained fall model.
 - `lib/fall/detector.ts` is pure logic with no runtime imports (the test loads it with Node type stripping), and no TS parameter properties or enums.
 - Run `npm run test:fall` after changing `lib/fall/` or `FALL_CONFIG`.
 - Alerts: `triggerAlert()` in `lib/alert/server.ts` (Twilio, server-only) via `POST /api/alert/fall` (sent once when the alarm goes off) and `POST /api/alert/test`. Never send alerts to emergency numbers; recipient comes only from `ALERT_TO_NUMBER`.
+
+## Accounts and database
+
+- Google sign-in is Auth.js v5 (`auth.ts`, JWT sessions, no adapter: `@auth/mongodb-adapter` doesn't support mongodb 7). API routes get the user from `resolveUserId()` in `lib/db/user.ts`: the session's `google:<sub>` wins; otherwise only an anonymous UUID from the body is accepted, so a client can't claim an account id.
+- MongoDB access is server-only through `getDb()` in `lib/db/server.ts`. The app must keep working when the database is down: sync is fire-and-forget and history stays in localStorage.
+- `lib/rehab/health.ts` (My Health body map scoring) is pure logic loaded by `npm run test:rehab`; keep runtime imports to `./settings` only.
 
 ## Health record plan
 
