@@ -1,5 +1,7 @@
 // Today's exercise plan, chosen by ChatGPT from the user's health record (see
-// lib/ehr/server.ts). Only the plan is kept, in localStorage, never the record.
+// lib/ehr/server.ts), or the five basic exercises without one. Only the plan is
+// kept, in localStorage, never the record. A plan belongs to whoever saved it,
+// so a different account on the same browser never sees someone else's plan.
 // Exposed as an external store for useSyncExternalStore, like storage.ts.
 
 import type { RoutineId } from "./routines/types";
@@ -20,6 +22,38 @@ export interface CarePlan extends PlanChoice {
   fileName: string;
   /** ISO timestamp. */
   createdAt: string;
+  /** Whose plan this is: the account id ("google:<sub>"), or "device" without sign-in. */
+  owner: string;
+  /** The five basic exercises, chosen without a health record. */
+  basic?: boolean;
+}
+
+/** The exercises for someone who continues without a health record. */
+export const BASIC_ROUTINES: RoutineId[] = ["sitToStand", "marching", "walk", "singleLeg", "stretches"];
+
+export function basicPlan(): Omit<CarePlan, "owner"> {
+  return {
+    routines: [...BASIC_ROUTINES],
+    reasons: {},
+    summary: "The five basic exercises, since there's no health record yet.",
+    planId: null,
+    fileName: "",
+    createdAt: new Date().toISOString(),
+    basic: true,
+  };
+}
+
+// Who's using the app now; plans are saved for them (see setPlanOwner).
+let currentOwner: string | null = null;
+
+/** Set by the app to the signed-in account id, "device", or null when nobody is in yet. */
+export function setPlanOwner(owner: string | null) {
+  currentOwner = owner;
+}
+
+/** The stored plan if it belongs to `owner`, else null: other people's plans are never shown. */
+export function planFor(plan: CarePlan | null, owner: string | null): CarePlan | null {
+  return plan && owner && plan.owner === owner ? plan : null;
 }
 
 const KEY = "rehab.plan.v1";
@@ -71,8 +105,9 @@ export const planStore = {
   getServerSnapshot: () => null,
 };
 
-export function savePlan(plan: CarePlan) {
-  write(plan);
+/** Saves the plan for whoever is using the app now. */
+export function savePlan(plan: Omit<CarePlan, "owner">) {
+  write({ ...plan, owner: currentOwner ?? "device" });
 }
 
 export function clearPlan() {

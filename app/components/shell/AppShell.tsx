@@ -102,6 +102,7 @@ export function AppShell({
                 type="button"
                 onClick={onHelp}
                 aria-expanded={helpOpen}
+                data-help-toggle
                 className={`flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-control)] px-3 text-left text-[0.95rem] transition-colors duration-150 ${
                   helpOpen ? "bg-bg-2 text-ink" : "text-ink-2 hover:bg-bg-2 hover:text-ink"
                 }`}
@@ -146,6 +147,7 @@ export function AppShell({
                 type="button"
                 onClick={onHelp}
                 aria-expanded={helpOpen}
+                data-help-toggle
                 aria-label="help"
                 className="flex h-11 w-11 items-center justify-center rounded-full text-ink-2 hover:bg-bg-2 hover:text-ink"
               >

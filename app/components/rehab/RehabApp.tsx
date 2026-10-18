@@ -2,9 +2,9 @@
 
 import { signOut, useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { planStore } from "@/lib/rehab/plan";
+import { basicPlan, planFor, planStore, savePlan, setPlanOwner } from "@/lib/rehab/plan";
 import { prefsStore, setPrefs } from "@/lib/rehab/prefs";
-import { claimAnonymousData, syncSession } from "@/lib/rehab/sync";
+import { syncAccount, syncSession } from "@/lib/rehab/sync";
 import { routineInfo } from "@/lib/rehab/routines/index";
 import type { RoutineId } from "@/lib/rehab/routines/types";
 import { SETTINGS } from "@/lib/rehab/settings";
@@ -67,11 +67,9 @@ export default function RehabApp({ googleConfigured, authError }: { googleConfig
   const session = auth.data;
   // With Google sign-in unconfigured there's no session to wait for.
   const status = googleConfigured ? auth.status : "unauthenticated";
-  const sessions = useSyncExternalStore(sessionStore.subscribe, sessionStore.getSnapshot, sessionStore.getServerSnapshot);
-  // Today's exercises, chosen from the uploaded health record; null until one is uploaded.
-  const plan = useSyncExternalStore(planStore.subscribe, planStore.getSnapshot, planStore.getServerSnapshot);
+  const allSessions = useSyncExternalStore(sessionStore.subscribe, sessionStore.getSnapshot, sessionStore.getServerSnapshot);
+  const storedPlan = useSyncExternalStore(planStore.subscribe, planStore.getSnapshot, planStore.getServerSnapshot);
   const prefs = useSyncExternalStore(prefsStore.subscribe, prefsStore.getSnapshot, prefsStore.getServerSnapshot);
-  const order = plan?.routines ?? [];
   // Dates depend on the viewer's clock and storage, so only compute them in the browser.
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
   const [screen, setScreen] = useState<ScreenState>({ name: "overview" });
@@ -82,6 +80,20 @@ export default function RehabApp({ googleConfigured, authError }: { googleConfig
   const closeHelp = useCallback(() => setHelpOpen(false), []);
   const [run, setRun] = useState(0);
 
+  const signedIn = status === "authenticated";
+  // Device-only use is offered only while Google sign-in isn't configured.
+  const deviceOnly = !googleConfigured && prefs.deviceOnly;
+  // Once per account per visit, move anything saved anonymously on this device
+  // onto the account, then load the account's history from the database.
+  const accountId = signedIn ? (session?.user as { id?: string } | undefined)?.id : undefined;
+  // Today's exercises, from this person's own health record (or the basic five);
+  // null until they upload one or choose the basics. Never someone else's plan.
+  const owner = accountId ?? (deviceOnly ? "device" : null);
+  useEffect(() => setPlanOwner(owner), [owner]);
+  const plan = planFor(storedPlan, owner);
+  // This person's sets only; on a shared browser, other accounts' sets stay hidden.
+  const sessions = useMemo(() => allSessions.filter((s) => (s.owner ?? owner) === owner), [allSessions, owner]);
+
   const { doneToday, streak, totalMs } = useMemo(
     () =>
       hydrated
@@ -89,17 +101,12 @@ export default function RehabApp({ googleConfigured, authError }: { googleConfig
         : { doneToday: new Set<RoutineId>(), streak: 0, totalMs: 0 },
     [sessions, hydrated],
   );
-
-  const signedIn = status === "authenticated";
-  // Device-only use is offered only while Google sign-in isn't configured.
-  const deviceOnly = !googleConfigured && prefs.deviceOnly;
-  // Once per account per visit, move anything saved anonymously on this device onto the account.
-  const accountId = signedIn ? (session?.user as { id?: string } | undefined)?.id : undefined;
+  const order = plan?.routines ?? [];
   const claimed = useRef<string | null>(null);
   useEffect(() => {
     if (accountId && claimed.current !== accountId) {
       claimed.current = accountId;
-      claimAnonymousData();
+      void syncAccount(accountId);
     }
   }, [accountId]);
 
@@ -136,6 +143,7 @@ export default function RehabApp({ googleConfigured, authError }: { googleConfig
 
   const finished = (r: RoutineResult) => {
     const record: SessionRecord = {
+      owner: owner ?? "device",
       id: crypto.randomUUID(),
       routineId: r.routineId,
       startedAt: r.startedAt,
@@ -157,7 +165,7 @@ export default function RehabApp({ googleConfigured, authError }: { googleConfig
   let gate: "loading" | "signin" | "onboarding" | null = null;
   if (!hydrated || status === "loading") gate = "loading";
   else if (!signedIn && !deviceOnly) gate = "signin";
-  else if (!plan && !prefs.skippedRecord) gate = "onboarding";
+  else if (!plan) gate = "onboarding";
 
   let content = null;
   if (gate === "loading") content = <AppSkeleton />;
@@ -170,7 +178,10 @@ export default function RehabApp({ googleConfigured, authError }: { googleConfig
       />
     );
   else if (gate === "onboarding")
-    content = <OnboardingScreen signedIn={signedIn} onDone={overview} onSkip={() => setPrefs({ skippedRecord: true })} />;
+    content = <OnboardingScreen signedIn={signedIn} onDone={overview} onSkip={() => {
+          savePlan(basicPlan());
+          overview();
+        }} />;
   else
     switch (screen.name) {
       case "overview":
@@ -192,6 +203,7 @@ export default function RehabApp({ googleConfigured, authError }: { googleConfig
         content = (
           <RehabilitationScreen
             plan={plan}
+            onUpload={() => setScreen({ name: "upload" })}
             doneToday={doneToday}
             onOpen={(id) => openRoutine(id)}
             onStartSession={() => goNext(null)}

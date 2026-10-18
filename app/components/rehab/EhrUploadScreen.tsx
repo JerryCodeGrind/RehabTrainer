@@ -3,7 +3,7 @@
 import { ArrowRight, Check, ChevronDown, FileText, RotateCcw, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { MAX_PDF_BYTES } from "@/lib/ehr/limits";
-import { savePlan, type CarePlan, type PlanChoice } from "@/lib/rehab/plan";
+import { BASIC_ROUTINES, savePlan, type CarePlan, type PlanChoice } from "@/lib/rehab/plan";
 import { userId } from "@/lib/rehab/sync";
 import { routineInfo } from "@/lib/rehab/routines/index";
 import { SETTINGS } from "@/lib/rehab/settings";
@@ -16,7 +16,7 @@ type State =
   | { kind: "rejected"; message: string }
   | { kind: "uploading"; file: File; sent: number }
   | { kind: "processing"; file: File }
-  | { kind: "done"; plan: CarePlan }
+  | { kind: "done"; plan: Omit<CarePlan, "owner"> }
   | { kind: "failed"; file: File; title: string; message: string }
   | { kind: "cancelled"; file: File };
 
@@ -74,7 +74,7 @@ export function EhrUpload({ onComplete }: { onComplete: () => void }) {
         // Not JSON: handled below as a server failure.
       }
       if (xhr.status >= 200 && xhr.status < 300 && data?.routines) {
-        const plan: CarePlan = { ...data, planId: data.planId ?? null, fileName: file.name, createdAt: new Date().toISOString() };
+        const plan: Omit<CarePlan, "owner"> = { ...data, planId: data.planId ?? null, fileName: file.name, createdAt: new Date().toISOString() };
         savePlan(plan);
         setState({ kind: "done", plan });
         return;
@@ -283,9 +283,16 @@ export function OnboardingScreen({ onDone, onSkip, signedIn }: { onDone: () => v
 
       <EhrUpload onComplete={onDone} />
 
-      <button type="button" onClick={onSkip} className={`${BTN_TERTIARY} -ml-3 self-start`}>
-        skip for now
-      </button>
+      {/* Exercises are chosen from the record; without one, everyone gets the same five basics. */}
+      <section aria-label="no health record" className="flex flex-col items-start gap-3 border-t border-line pt-6">
+        <p className="text-base text-ink-2">
+          no health record? continue with our five basic exercises:{" "}
+          {BASIC_ROUTINES.map((id) => routineInfo(id, SETTINGS).name.toLowerCase()).join(", ")}.
+        </p>
+        <button type="button" onClick={onSkip} className={BTN_SECONDARY}>
+          continue without a health record
+        </button>
+      </section>
     </main>
   );
 }

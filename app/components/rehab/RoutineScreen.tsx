@@ -10,7 +10,7 @@ import {
   ArrowLeft, ArrowRight, Camera, CameraOff, Check, ChevronDown, Hand, ShieldAlert, SlidersHorizontal, Square, ThumbsUp,
   TriangleAlert, X,
 } from "lucide-react";
-import { BTN_PRIMARY, BTN_STOP, BTN_TERTIARY, GoalChip, ProgressBar, Spinner } from "./ui";
+import { BTN_PRIMARY, BTN_SECONDARY, BTN_STOP, BTN_TERTIARY, GoalChip, ProgressBar, Spinner } from "./ui";
 import type { GestureDiag, PoseSource } from "./usePoseSource";
 
 export interface RoutineResult {
@@ -134,7 +134,12 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
     const id = setTimeout(() => setAlmostReady(null), 4000);
     return () => clearTimeout(id);
   }, [almostReady]);
+  // A set stopped after counting began: offer to save what was done, or discard it.
+  const [stopped, setStopped] = useState<RoutineResult | null>(null);
   const stop = () => {
+    if (runner.phase === "tracking") {
+      setStopped({ routineId: id, startedAt: runner.startedAtIso, durationMs: runner.durationMs, summary: runner.summary() });
+    }
     runner.stop();
     setView(runner.snapshot());
   };
@@ -142,7 +147,7 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
   const active = view.phase !== "ready" && view.phase !== "done";
   // Gesture checks run whenever this screen is waiting and the setting is on,
   // even with a red framing check (the hook also needs a person in view).
-  const gestureOn = gestureStart && view.phase === "ready" && cameraReady;
+  const gestureOn = gestureStart && view.phase === "ready" && cameraReady && !stopped;
   const gestureOffReason = !gestureStart ? "setting off" : view.phase !== "ready" ? "exercise already started" : "camera not ready";
   useEffect(() => {
     setGestureActive(gestureOn, gestureOffReason);
@@ -172,6 +177,28 @@ export function RoutineScreen({ id, source, debug, onToggleDebug, note, onFinish
   const phaseLabel = PHASES.find((p) => p.key === view.phase)?.label ?? view.phase;
   const zoom = getZoom();
   const tracking = view.phase === "tracking";
+
+  if (stopped) {
+    const { reps, target } = stopped.summary;
+    return (
+      <div role="dialog" aria-modal="true" aria-labelledby="stopped-title" className="mx-auto flex w-full max-w-md flex-col gap-6 px-5 pt-16 pb-28">
+        <h1 id="stopped-title" className="text-page font-semibold tracking-tight text-ink">
+          stopped at {reps} of {target}
+        </h1>
+        <p className="text-base text-ink-2">
+          save this set to your history, or discard it and start {info.name.toLowerCase()} again.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" autoFocus onClick={() => onFinished(stopped)} className={BTN_PRIMARY}>
+            save {reps} of {target}
+          </button>
+          <button type="button" onClick={() => setStopped(null)} className={BTN_SECONDARY}>
+            discard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-28 sm:px-6 lg:px-10 lg:pt-6 lg:pb-12">

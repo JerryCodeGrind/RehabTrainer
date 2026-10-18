@@ -4,12 +4,10 @@
 export interface Prefs {
   /** Using the app on this device without an account (only offered while Google sign-in isn't configured). */
   deviceOnly: boolean;
-  /** Chose "skip for now" on the health-record step. */
-  skippedRecord: boolean;
 }
 
 const KEY = "rehab.prefs.v1";
-const DEFAULTS: Prefs = { deviceOnly: false, skippedRecord: false };
+const DEFAULTS: Prefs = { deviceOnly: false };
 const listeners = new Set<() => void>();
 let cache: { raw: string | null; value: Prefs } | null = null;
 

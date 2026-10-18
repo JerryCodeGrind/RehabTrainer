@@ -525,12 +525,15 @@ check("new routines feed the muscle map", () => {
 });
 
 check("streak counts consecutive days", () => {
-  const day = (offset) => ({ routineId: "walk", finishedAt: new Date(2026, 9, 17 - offset, 12).toISOString() });
+  const day = (offset, routineId = "walk", reps = 4) => ({ routineId, reps, target: 4, finishedAt: new Date(2026, 9, 17 - offset, 12).toISOString() });
   const now = new Date(2026, 9, 17, 18);
   assert.equal(streak([day(0), day(1), day(2), day(4)], now), 3);
   assert.equal(streak([day(1), day(2)], now), 2);
   assert.equal(streak([day(3)], now), 0);
   assert.deepEqual([...completedToday([day(0), day(1)], now)], ["walk"]);
+  // A set saved partway (stopped early) counts toward the streak, but isn't done today.
+  assert.deepEqual([...completedToday([day(0, "sitToStand", 2)], now)], []);
+  assert.equal(streak([day(0, "sitToStand", 2), day(1)], now), 2);
 });
 
 check("muscle health: weaker side flagged, balance counts for the standing leg, trends", () => {

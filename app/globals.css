@@ -164,7 +164,8 @@ pre,
   background: rgb(114 161 229 / 0.28);
 }
 
-:focus-visible {
+/* Not the help chat's text box: its rounded container darkens its border on focus instead. */
+:focus-visible:not(.aui-composer-input) {
   outline: 2px solid var(--color-sky);
   outline-offset: 2px;
 }

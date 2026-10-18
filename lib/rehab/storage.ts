@@ -18,6 +18,12 @@ export interface SessionRecord {
   metrics: Metric[];
   data: Record<string, unknown>;
   feeling?: Feeling;
+  /** Made-up history from `npm run seed:demo`, for demos. */
+  demo?: boolean;
+  /** Whose set this is: the account id ("google:<sub>"), or "device" without sign-in. */
+  owner?: string;
+  /** MongoDB has confirmed this version of the record. Unsynced ones are retried on load. */
+  synced?: boolean;
 }
 
 const KEY = "rehab.sessions.v1";
@@ -73,8 +79,30 @@ export function saveSession(record: SessionRecord) {
   write([...read(), record]);
 }
 
+/** MongoDB confirmed this record. */
+export function markSynced(id: string) {
+  write(read().map((s) => (s.id === id ? { ...s, synced: true } : s)));
+}
+
+/**
+ * Make MongoDB the source of truth for `owner`'s history: their copy on this
+ * device becomes exactly what the server has, plus their sets that haven't
+ * reached it yet (returned, to retry). Sets saved on this device before sets
+ * had owners are adopted by this account. Other accounts' sets are left alone.
+ */
+export function replaceAccountHistory(owner: string, fromServer: SessionRecord[]): SessionRecord[] {
+  const local = read().map((s) => (s.owner ? s : { ...s, owner, synced: false }));
+  const server = fromServer.map((s) => ({ ...s, owner, synced: true }));
+  const onServer = new Set(server.map((s) => s.id));
+  const pending = local.filter((s) => s.owner === owner && !s.synced && !onServer.has(s.id));
+  const others = local.filter((s) => s.owner !== owner);
+  write([...others, ...server, ...pending].sort((a, b) => a.finishedAt.localeCompare(b.finishedAt)));
+  return pending;
+}
+
 export function setFeeling(id: string, feeling: Feeling) {
-  write(read().map((s) => (s.id === id ? { ...s, feeling } : s)));
+  // Changed since MongoDB last confirmed it, until the update is saved there.
+  write(read().map((s) => (s.id === id ? { ...s, feeling, synced: false } : s)));
 }
 
 /** Local calendar day, e.g. "2026-10-17". */
@@ -82,9 +110,13 @@ export function dayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Routines finished today: a set that reached its target. A set saved partway
+ * (stopped early) still counts toward history and streaks, but not here. */
 export function completedToday(sessions: SessionRecord[], now = new Date()): Set<RoutineId> {
   const today = dayKey(now);
-  return new Set(sessions.filter((s) => dayKey(new Date(s.finishedAt)) === today).map((s) => s.routineId));
+  return new Set(
+    sessions.filter((s) => dayKey(new Date(s.finishedAt)) === today && s.reps >= s.target).map((s) => s.routineId),
+  );
 }
 
 /** Consecutive days with at least one routine done, ending today (or

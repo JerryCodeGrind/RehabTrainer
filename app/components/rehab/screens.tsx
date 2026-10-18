@@ -73,6 +73,15 @@ export function OverviewScreen({
 
       {plan && routines.length ? (
         <section aria-label="today's plan" className="flex flex-col gap-6 rounded-[var(--radius-panel)] border border-line bg-surface p-5 sm:p-8">
+          {plan.basic ? (
+            <p className="text-sm text-ink-2">
+            basic exercises, without a health record.{" "}
+            <button type="button" onClick={onUpload} className="font-semibold text-ink underline underline-offset-4 hover:text-brand">
+              add your health record
+            </button>{" "}
+            to get exercises chosen for you.
+          </p>
+          ) : null}
           <div className="flex items-end justify-between gap-4">
             <p className="num text-[3.5rem] leading-none font-semibold text-ink">
               {count}
@@ -196,15 +205,18 @@ const AREAS = ["legs", "core and balance", "upper body"] as const;
 
 export function RehabilitationScreen({
   plan,
+  onUpload,
   doneToday,
   onOpen,
   onStartSession,
 }: {
   plan: CarePlan | null;
+  onUpload: () => void;
   doneToday: Set<RoutineId>;
   onOpen: (id: RoutineId) => void;
   onStartSession: () => void;
 }) {
+  // Only the exercises chosen for this person (or the basic five without a record).
   const planned = plan?.routines ?? [];
   const hasNext = planned.some((id) => !doneToday.has(id));
   return (
@@ -222,8 +234,28 @@ export function RehabilitationScreen({
         }
       />
 
+      {plan?.basic ? (
+        <p className="text-sm text-ink-2">
+          basic exercises, without a health record.{" "}
+          <button type="button" onClick={onUpload} className="font-semibold text-ink underline underline-offset-4 hover:text-brand">
+            add your health record
+          </button>{" "}
+          to get exercises chosen for you.
+        </p>
+      ) : null}
+      {planned.length === 0 ? (
+        <p className="text-base text-ink-2">
+          no exercises in your plan today. check with your care team, or{" "}
+          <button type="button" onClick={onUpload} className="font-semibold text-ink underline underline-offset-4 hover:text-brand">
+            upload a newer health record
+          </button>
+          .
+        </p>
+      ) : null}
+
       {AREAS.map((area) => {
-        const ids = ROUTINE_ORDER.filter((id) => info(id).area === area);
+        const ids = ROUTINE_ORDER.filter((id) => info(id).area === area && planned.includes(id));
+        if (ids.length === 0) return null;
         return (
           <section key={area} aria-label={area} className="flex flex-col gap-3">
             <h2 className="text-sm text-ink-3">{area}</h2>
@@ -231,7 +263,6 @@ export function RehabilitationScreen({
               {ids.map((id, i) => {
               const r = info(id);
               const done = doneToday.has(id);
-              const inPlan = planned.includes(id);
               return (
                 <li key={id}>
                   <Reveal delay={i * 60}>
@@ -246,8 +277,6 @@ export function RehabilitationScreen({
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sage-tint text-sage-ink" aria-label="done today">
                             <Check className="h-4 w-4" aria-hidden />
                           </span>
-                        ) : inPlan ? (
-                          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-sky" aria-label="in today's plan" />
                         ) : null}
                       </span>
                       <span className="flex w-full items-center justify-between text-sm text-ink-2">
@@ -495,13 +524,19 @@ export function FinishScreen({
 }) {
   const r = info(record.routineId);
   const hard = record.feeling === "hard";
+  const partial = record.reps < record.target;
   return (
     <Screen narrow>
       <header className="flex flex-col items-start gap-5">
-        <DoneMark />
+        {partial ? null : <DoneMark />}
         <h1 className="text-page font-semibold tracking-tight text-ink" aria-live="polite">
           {r.name}
         </h1>
+        {partial ? (
+          <p className="text-base text-ink-2">
+            saved: {record.reps} of {record.target}. it stays on today&apos;s list, so you can finish it later.
+          </p>
+        ) : null}
       </header>
 
       <dl className="grid grid-cols-2 gap-6">

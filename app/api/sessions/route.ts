@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { dbErrorResponse, getDb } from "@/lib/db/server";
-import { resolveUserId } from "@/lib/db/user";
+import { accountId, resolveUserId } from "@/lib/db/user";
 import { ROUTINE_ORDER } from "@/lib/rehab/routines/index";
 import type { SessionRecord } from "@/lib/rehab/storage";
 
@@ -59,6 +59,33 @@ export async function POST(request: Request) {
     const db = await getDb();
     await db.collection("sessions").replaceOne({ clientId: doc.clientId, userId: doc.userId }, doc, { upsert: true });
     return Response.json({ ok: true });
+  } catch (err) {
+    return dbErrorResponse(err);
+  }
+}
+
+// The signed-in account's history (newest 1,000), as SessionRecords, so it
+// follows the user to any device. Includes seeded demo sessions (demo: true).
+export async function GET() {
+  const userId = await accountId();
+  if (!userId) return Response.json({ message: "Not signed in" }, { status: 401 });
+  try {
+    const db = await getDb();
+    const docs = await db.collection("sessions").find({ userId }).sort({ finishedAt: -1 }).limit(1000).toArray();
+    const sessions: SessionRecord[] = docs.reverse().map((d) => ({
+      id: d.clientId,
+      routineId: d.routineId,
+      startedAt: new Date(d.startedAt).toISOString(),
+      finishedAt: new Date(d.finishedAt).toISOString(),
+      durationMs: d.durationMs,
+      reps: d.reps,
+      target: d.target,
+      metrics: Array.isArray(d.metrics) ? d.metrics : [],
+      data: d.data ?? {},
+      ...(d.feeling ? { feeling: d.feeling } : {}),
+      ...(d.demo ? { demo: true } : {}),
+    }));
+    return Response.json({ sessions });
   } catch (err) {
     return dbErrorResponse(err);
   }

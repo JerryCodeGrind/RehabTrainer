@@ -7,6 +7,7 @@ import { Assistant } from "@/app/assistant";
 /**
  * Help panel that slides in from the right. The conversation mounts on first
  * open and stays mounted afterwards, so closing and reopening keeps it.
+ * Escape or a press anywhere outside the panel closes it.
  */
 export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [mounted, setMounted] = useState(open);
@@ -23,10 +24,20 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+    // A press anywhere outside the panel closes it, except on the help buttons
+    // (they toggle it themselves) and on pop-ups the chat opens outside the panel.
+    const onPointer = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.isConnected || panelRef.current?.contains(target)) return;
+      if (target.closest('[data-help-toggle], [role="menu"], [role="listbox"], [role="dialog"], [role="tooltip"]')) return;
+      onClose();
+    };
     window.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
     return () => {
       cancelAnimationFrame(id);
       window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
       returnFocus.current?.focus();
     };
   }, [open, onClose]);
