@@ -9,7 +9,7 @@ import { ROUTINE_ORDER, routineInfo } from "@/lib/rehab/routines/index";
 import { SETTINGS } from "@/lib/rehab/settings";
 
 const DEFAULT_MODEL = "gpt-6.1-sol";
-export const MAX_PDF_BYTES = 10 * 1024 * 1024;
+export { MAX_PDF_BYTES } from "./limits";
 // Plenty for a long record, while keeping the request (and its cost) bounded.
 const MAX_RECORD_CHARS = 60_000;
 

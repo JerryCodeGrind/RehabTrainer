@@ -171,32 +171,57 @@ function drawView(ctx: CanvasRenderingContext2D, video: HTMLVideoElement | null,
     const vh = video.videoHeight;
     ctx.drawImage(video, crop.x * vw, crop.y * vh, crop.w * vw, crop.h * vh, 0, 0, w, h);
   } else {
-    ctx.fillStyle = "#18181b";
+    ctx.fillStyle = "#1d2a31";
     ctx.fillRect(0, 0, w, h);
   }
   if (!frame) return;
   const pts = frame.draw.map((p) => ({ ...toCrop(p, crop), v: p.visibility }));
   const ok = (i: number) => pts[i].v > SETTINGS.pose.minVisibility;
+  // Below the tracking threshold but still roughly placed: shown as uncertain, never used for counting.
+  const faint = (i: number) => !ok(i) && pts[i].v > SETTINGS.pose.minVisibility * 0.4;
   const scale = Math.max(2, h / 180);
   ctx.lineCap = "round";
-  ctx.lineWidth = scale;
-  ctx.strokeStyle = "#a3e635";
   // Face points are skipped to keep the picture clear.
-  for (const { start, end } of PoseLandmarker.POSE_CONNECTIONS) {
-    if (start < 11 || end < 11 || !ok(start) || !ok(end)) continue;
-    ctx.beginPath();
-    ctx.moveTo(pts[start].x * w, pts[start].y * h);
-    ctx.lineTo(pts[end].x * w, pts[end].y * h);
-    ctx.stroke();
-  }
-  ctx.fillStyle = "#ffffff";
+  const bones = PoseLandmarker.POSE_CONNECTIONS.filter(({ start, end }) => start >= 11 && end >= 11 && ok(start) && ok(end));
+  const strokeBones = () => {
+    for (const { start, end } of bones) {
+      ctx.beginPath();
+      ctx.moveTo(pts[start].x * w, pts[start].y * h);
+      ctx.lineTo(pts[end].x * w, pts[end].y * h);
+      ctx.stroke();
+    }
+  };
+  ctx.lineWidth = scale * 2.2;
+  ctx.strokeStyle = "rgba(20, 30, 36, 0.55)";
+  strokeBones();
+  ctx.lineWidth = scale * 0.9;
+  ctx.strokeStyle = "#72a1e5";
+  strokeBones();
   for (let i = 11; i < pts.length; i++) {
-    if (!ok(i)) continue;
-    ctx.beginPath();
-    ctx.arc(pts[i].x * w, pts[i].y * h, scale * 1.4, 0, Math.PI * 2);
-    ctx.fill();
+    const x = pts[i].x * w;
+    const y = pts[i].y * h;
+    if (ok(i)) {
+      const r = scale * (MAJOR_JOINTS.has(i) ? 1.9 : 1.1);
+      ctx.beginPath();
+      ctx.arc(x, y, r + scale * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(20, 30, 36, 0.6)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = MAJOR_JOINTS.has(i) ? "#ffffff" : "#e9edde";
+      ctx.fill();
+    } else if (faint(i)) {
+      ctx.beginPath();
+      ctx.arc(x, y, scale * 1.4, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(1, scale * 0.45);
+      ctx.strokeStyle = "rgba(233, 237, 222, 0.6)";
+      ctx.stroke();
+    }
   }
 }
+
+/** Shoulders, elbows, hips and knees: drawn larger. */
+const MAJOR_JOINTS = new Set([11, 12, 13, 14, 23, 24, 25, 26]);
 
 function sizeCanvas(c: HTMLCanvasElement, width: number, height: number) {
   if (c.width !== width || c.height !== height) {

@@ -1,26 +1,331 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "tw-shimmer";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ── rupert design tokens ─────────────────────────────────────────────
+   Four brand colours, each with one job:
+   brand (deep blue) = primary actions and navigation emphasis,
+   sage = completed and positive states,
+   sky (soft blue) = interactive highlights and data,
+   cream (warm off-white) = soft supporting surfaces. Everything else is neutral. */
+@theme static {
+  --color-brand: #28536b;
+  --color-brand-hover: #214759;
+  --color-brand-press: #1b3b4a;
+  --color-brand-tint: #e5eef2;
+  --color-sage: #629460;
+  --color-sage-ink: #46703f; /* sage dark enough for text on white */
+  --color-sage-tint: #e9f1e6;
+  --color-sky: #72a1e5;
+  --color-sky-ink: #3f6fb3;
+  --color-sky-tint: #eaf1fb;
+  --color-cream: #e9edde;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --color-bg: #f8faf7;
+  --color-bg-2: #f0f3ec;
+  --color-surface: #ffffff;
+  --color-ink: #23323a;
+  --color-ink-2: #5d6c71;
+  --color-ink-3: #7f8c90;
+  --color-line: #e1e7e2;
+  --color-line-strong: #cbd4ce;
+  --color-disabled: #edf0ec;
+  --color-danger: #b0443b;
+  --color-danger-tint: #f9eae8;
+  --color-warn: #9a640f;
+  --color-warn-tint: #fbf2e1;
+
+  --font-sans: var(--font-comfortaa), "Comfortaa", ui-rounded, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Measurements: a plain system face with tabular figures reads better than Comfortaa's round digits. */
+  --font-num: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --text-page: clamp(1.875rem, 1.6rem + 0.9vw, 2.375rem);
+  --text-page--line-height: 1.15;
+  --text-section: clamp(1.3rem, 1.2rem + 0.4vw, 1.625rem);
+  --text-section--line-height: 1.25;
+  --text-measure: clamp(1.75rem, 1.4rem + 1.4vw, 2.75rem);
+  --text-measure--line-height: 1;
+
+  --radius-control: 8px;
+  --radius-button: 10px;
+  --radius-panel: 14px;
+  --radius-modal: 16px;
+
+  --shadow-soft: 0 1px 2px rgb(35 50 58 / 0.05), 0 4px 16px rgb(35 50 58 / 0.05);
+  --shadow-float: 0 2px 6px rgb(35 50 58 / 0.08), 0 12px 32px rgb(35 50 58 / 0.1);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in: fade-in 240ms var(--ease-out) both;
+  --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+  --animate-indeterminate: indeterminate 1.4s ease-in-out infinite;
+  --animate-screen-in: screen-in 360ms var(--ease-out) both;
+  --animate-pop: pop 320ms var(--ease-out) both;
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes screen-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    60% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+  @keyframes indeterminate {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(250%); }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+:root {
+  color-scheme: light;
+  --sidebar-w: 15rem;
+  --content-max: 72rem;
+  --nav-h: 0px;
+
+  /* shadcn / assistant-ui tokens, mapped onto the palette above. */
+  --background: var(--color-surface);
+  --foreground: var(--color-ink);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-brand);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-bg-2);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-bg-2);
+  --muted-foreground: var(--color-ink-2);
+  --accent: var(--color-bg-2);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-danger);
+  --border: var(--color-line);
+  --input: var(--color-line-strong);
+  --ring: var(--color-sky);
+  --chart-1: var(--color-brand);
+  --chart-2: var(--color-sky);
+  --chart-3: var(--color-sage);
+  --chart-4: var(--color-cream);
+  --chart-5: var(--color-ink-3);
+  --radius: 0.75rem;
+  --sidebar: var(--color-surface);
+  --sidebar-foreground: var(--color-ink);
+  --sidebar-primary: var(--color-brand);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--color-bg-2);
+  --sidebar-accent-foreground: var(--color-ink);
+  --sidebar-border: var(--color-line);
+  --sidebar-ring: var(--color-sky);
 }
+
+html {
+  background: var(--color-bg);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* House style: every piece of interface text is lowercase. */
+  text-transform: lowercase;
+}
+
+/* Browsers reset text-transform on form controls; buttons follow the house style. */
+button {
+  text-transform: inherit;
+}
+
+/* What people type, and third-party brand marks, keep their own case. */
+input,
+textarea,
+select,
+code,
+pre,
+.keep-case {
+  text-transform: none;
+}
+
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: rgb(114 161 229 / 0.28);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-sky);
+  outline-offset: 2px;
+}
+
+/* Pressable surfaces: a quick squeeze on press and a ripple from the touch point (see Ripples.tsx). */
+.press {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 160ms var(--ease-out), background-color 150ms, border-color 150ms, color 150ms, box-shadow 200ms;
+}
+.press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.press:hover:not(:disabled) {
+  box-shadow: var(--shadow-soft);
+}
+.ripple-ink {
+  position: absolute;
+  z-index: -1;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: currentColor;
+  opacity: 0.18;
+  transform: scale(0);
+  animation: ripple 560ms var(--ease-out) forwards;
+}
+@keyframes ripple {
+  to { transform: scale(1); opacity: 0; }
+}
+
+/* Chart bars grow up from the baseline. */
+.bar-grow {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: bar-grow 700ms var(--ease-out) both;
+}
+@keyframes bar-grow {
+  from { transform: scaleY(0); }
+}
+
+/* Arrow nudges on hover. */
+.press:hover .nudge,
+.group:hover .nudge {
+  transform: translateX(3px);
+}
+.nudge {
+  transition: transform 200ms var(--ease-out);
+}
+
+/* Scroll reveal (see Reveal.tsx). */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+[data-reveal="shown"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Expanding sections: animate height via grid rows. */
+.expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms var(--ease-out), opacity 260ms;
+  opacity: 0;
+}
+.expand[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.expand > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height, var(--collapsible-panel-height, auto));
+    }
+  }
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height, var(--collapsible-panel-height, auto));
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
+
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
