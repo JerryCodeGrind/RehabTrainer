@@ -38,9 +38,9 @@ Before the final response, run one reporting pass. If candidates remain, from th
 
 ## Accounts and database
 
-- Google sign-in is Auth.js v5 (`auth.ts`, JWT sessions, no adapter: `@auth/mongodb-adapter` doesn't support mongodb 7). API routes get the user from `resolveUserId()` in `lib/db/user.ts`: the session's `google:<sub>` wins; otherwise only an anonymous UUID from the body is accepted, so a client can't claim an account id.
+- Google sign-in is NextAuth v4 (`lib/auth.ts`, JWT sessions, no adapter). The session carries `user.id` = `google:<sub>`. API routes get the user from `resolveUserId()` in `lib/db/user.ts`: the session's id wins; otherwise only an anonymous UUID from the body is accepted, so a client can't claim an account id.
 - MongoDB access is server-only through `getDb()` in `lib/db/server.ts`. The app must keep working when the database is down: sync is fire-and-forget and history stays in localStorage.
-- `lib/rehab/health.ts` (My Health body map scoring) is pure logic loaded by `npm run test:rehab`; keep runtime imports to `./settings` only.
+- Camera, pose tracking and fall detection run only during an exercise: RehabApp calls `releaseCamera()` on every other screen and passes `active` to FallGuard.
 
 ## Health record plan
 

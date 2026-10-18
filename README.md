@@ -119,24 +119,21 @@ only use Twilio's sample wording; that switches automatically once the account i
 `POST /api/alert/test` run it, at most once a minute and once every 30 s respectively. It only ever contacts `ALERT_TO_NUMBER`, and rejects anything that isn't a full phone number
 (so never 911 or other emergency numbers). The result, or Twilio's error, is shown under the button.
 
-## Sign-in, database and My Health
+## Sign-in and database
 
-Sessions, plans and fall alarms are saved to MongoDB in the background (`lib/rehab/sync.ts` → `app/api/sessions`, `app/api/falls`; plans from `app/api/ehr/plan`);
-the app works the same without it, since history also stays in `localStorage`. Google sign-in is Auth.js (`auth.ts`) with
-JWT sessions; on sign-in the profile is upserted into `users`, and anything this device saved anonymously moves onto the
-account (`POST /api/account/claim`). Signed-in requests are saved under `google:<sub>`, taken from the session cookie,
-never from the request body.
+Sessions, plans and fall alarms are saved to MongoDB in the background (`lib/rehab/sync.ts` → `app/api/sessions`,
+`app/api/falls`; plans from `app/api/ehr/plan`); the app works the same without it, since history also stays in
+`localStorage`. Google sign-in is NextAuth (`lib/auth.ts`) with JWT sessions; on sign-in the profile is upserted into
+`users`, and anything this device saved anonymously moves onto the account (`POST /api/account/claim`). Signed-in
+requests are saved under `google:<sub>`, taken from the session cookie, never from the request body.
 
 ```bash
 MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/
 MONGODB_DB=rehab                  # optional; this is the default
-AUTH_SECRET=...                   # npx auth secret
-AUTH_GOOGLE_ID=...                # Google Cloud OAuth client; redirect URI
-AUTH_GOOGLE_SECRET=...            #   http://localhost:3000/api/auth/callback/google
+GOOGLE_CLIENT_ID=...              # or AUTH_GOOGLE_ID; redirect URI
+GOOGLE_CLIENT_SECRET=...          # or AUTH_GOOGLE_SECRET; http://localhost:3000/api/auth/callback/google
+NEXTAUTH_SECRET=...               # or AUTH_SECRET
 ```
-
-The profile picture on the home screen opens a menu with **My Health** (a body map colored by recent exercise
-results, `lib/rehab/health.ts`) and **Exercise history** (exercises per day plus a list of past sessions).
 
 ## Learn More
 

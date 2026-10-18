@@ -204,30 +204,30 @@ export function FallGuard({ source, active }: { source: PoseSource; active: bool
               : "Fall detection on";
   const dot =
     status === "error" || hidden || current?.phase === "down"
-      ? "bg-red-500"
+      ? "bg-danger"
       : current?.personInView
-        ? "bg-lime-400"
-        : "bg-zinc-400";
+        ? "bg-sage"
+        : "bg-ink-3";
 
   return (
     <>
       {/* The status pill (and test alert) only show during exercises. */}
-      <div className={`pointer-events-none fixed right-4 bottom-4 z-40 max-w-md flex-col items-end gap-2 ${active ? "flex" : "hidden"}`}>
+      <div className={`pointer-events-none fixed right-4 bottom-[calc(var(--nav-h)+1rem)] z-40 max-w-[calc(100vw-2rem)] flex-col items-end gap-2 sm:max-w-md ${active ? "flex" : "hidden"}`}>
         {testAlert ? (
           <p
             role="status"
-            className={`pointer-events-auto rounded-xl bg-black/80 px-3 py-2 text-sm backdrop-blur ${
-              testAlert.state === "error" ? "text-red-300" : "text-zinc-100"
+            className={`pointer-events-auto rounded-[var(--radius-button)] border border-line bg-surface px-3 py-2 text-sm shadow-[var(--shadow-soft)] ${
+              testAlert.state === "error" ? "text-danger" : "text-ink"
             }`}
           >
             {testAlert.text}
           </p>
         ) : null}
-        <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-black/80 py-1.5 pr-1.5 pl-4 text-sm text-white shadow-lg backdrop-blur">
+        <div className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-line bg-surface/95 py-1 pr-1 pl-3.5 text-xs text-ink-2 shadow-[var(--shadow-soft)] backdrop-blur sm:gap-3 sm:text-sm">
           <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
           <span aria-live="polite">{statusText}</span>
           {status === "error" ? (
-            <button type="button" onClick={() => void ensureCamera()} className="rounded-full bg-white px-3 py-1.5 font-semibold text-black hover:bg-zinc-200">
+            <button type="button" onClick={() => void ensureCamera()} className="min-h-9 rounded-full bg-brand px-3.5 font-semibold text-white hover:bg-brand-hover">
               Try again
             </button>
           ) : null}
@@ -235,7 +235,7 @@ export function FallGuard({ source, active }: { source: PoseSource; active: bool
             type="button"
             onClick={sendTestAlert}
             disabled={testAlert?.state === "sending"}
-            className="rounded-full bg-white/15 px-3 py-1.5 font-semibold hover:bg-white/25 disabled:opacity-60"
+            className="min-h-9 rounded-full border border-line-strong px-3.5 font-semibold text-ink hover:bg-bg-2 disabled:opacity-60"
           >
             Test alert
           </button>
@@ -246,7 +246,7 @@ export function FallGuard({ source, active }: { source: PoseSource; active: bool
         <div
           role="alertdialog"
           aria-labelledby="fall-alarm-title"
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-red-700/95 p-8 text-center text-white"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-danger p-8 text-center text-white"
         >
           <h2 id="fall-alarm-title" className="text-5xl font-bold tracking-tight sm:text-7xl">
             Fall detected
@@ -269,7 +269,7 @@ export function FallGuard({ source, active }: { source: PoseSource; active: bool
             type="button"
             onClick={dismiss}
             autoFocus
-            className="min-h-20 rounded-full bg-white px-12 text-3xl font-semibold text-black shadow-lg hover:bg-zinc-200"
+            className="min-h-20 rounded-[var(--radius-modal)] bg-white px-12 text-3xl font-bold text-danger shadow-lg hover:bg-danger-tint"
           >
             I&apos;m OK
           </button>
