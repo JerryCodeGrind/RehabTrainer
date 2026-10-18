@@ -377,6 +377,153 @@ check("hand crops: centered on the hand, raised for the thumb, 0.9 torso, forear
   assert.equal(handCrops(hidden, 0.25, frame, cfg, SETTINGS.pose.minVisibility).length, 0);
 });
 
+// ── Camera-tracked strength and mobility routines ────────────────────────────
+
+const CAL = SETTINGS.flow.calibrationPrepMs + SETTINGS.flow.calibrationSampleMs + 100;
+
+/** Runs the countdown and each calibration step, calling `pose[i]()` before step i. */
+function calibrate(s, ...pose) {
+  calibrateCountdown(s);
+  for (const p of pose) {
+    p?.();
+    s.step(CAL);
+  }
+  assert.equal(s.view().phase, "tracking", `still ${s.view().phase}`);
+}
+
+/** Toggles `k` on then off `n` times, `ms` each way. */
+function reps(s, k, n, ms = 1500) {
+  for (let i = 0; i < n; i++) {
+    s.key(k);
+    s.step(ms);
+    s.key(k);
+    s.step(ms);
+  }
+}
+
+function finished(s, total) {
+  assert.equal(s.runner.routine.getProgress().done, total);
+  assert.equal(s.view().phase, "done");
+  assert.equal(s.runner.summary().reps, total);
+  assert.ok(s.events.includes("complete"));
+}
+
+check("seated knee extensions count per leg and ask to sit when standing", () => {
+  const standing = session("kneeExtension");
+  calibrate(standing, () => {});
+  standing.key("x");
+  standing.step(1500);
+  assert.equal(standing.view().feedback, "Sit down on a chair for this one");
+  assert.equal(standing.runner.routine.getProgress().done, 0);
+
+  const s = session("kneeExtension");
+  s.key("s");
+  calibrate(s, () => {});
+  reps(s, "x", 10);
+  assert.equal(s.runner.routine.getProgress().done, 10);
+  assert.match(s.view().feedback, /right leg/i);
+  reps(s, "j", 10);
+  finished(s, 20);
+});
+
+check("heel raises count rises of the whole body", () => {
+  const s = session("heelRaise");
+  calibrate(s, () => {});
+  reps(s, "e", 12, 1200);
+  finished(s, 12);
+});
+
+check("trunk side bends count each side", () => {
+  const s = session("sideBend");
+  calibrate(s, () => {});
+  for (let i = 0; i < 8; i++) {
+    s.key("b", 1500);
+    s.step(1200);
+    s.key("n", 1500);
+    s.step(1200);
+  }
+  finished(s, 16);
+  const data = s.runner.summary().data;
+  assert.equal(data.peaks.left.length, 8);
+  assert.equal(data.peaks.right.length, 8);
+});
+
+check("side arm raises count both arms together", () => {
+  const s = session("lateralRaise");
+  calibrate(s, () => {});
+  reps(s, "u", 10);
+  finished(s, 20);
+  assert.ok(s.runner.summary().metrics.some((m) => m.label === "Highest arm angle"));
+});
+
+check("bicep curls count per arm and flag swinging elbows", () => {
+  const s = session("bicepCurl");
+  calibrate(s, () => {});
+  reps(s, "y", 10);
+  finished(s, 20);
+
+  const swing = session("bicepCurl");
+  calibrate(swing, () => {});
+  swing.key("u"); // arms swing up and out instead of bending at the elbow
+  swing.step(1500);
+  assert.equal(swing.view().feedback, "Keep your elbows down by your sides");
+});
+
+check("overhead press counts from the shoulders to straight arms", () => {
+  const s = session("overheadPress");
+  s.key("i"); // hands up by the shoulders
+  calibrate(s, () => {});
+  reps(s, "i", 10);
+  finished(s, 20);
+});
+
+check("arm openers calibrate closed and open, then count", () => {
+  const s = session("armOpeners");
+  s.key("o"); // arms forward, hands together
+  calibrate(s, () => {}, () => s.key("o"));
+  assert.equal(s.runner.summary().data.calibrated, true);
+  s.key("o"); // close again before counting
+  s.step(1500);
+  reps(s, "o", 10);
+  finished(s, 10);
+
+  const low = session("armOpeners");
+  calibrate(low, () => {}, () => {});
+  low.step(500);
+  assert.equal(low.view().feedback, "Keep your arms at shoulder height", "arms hanging are too low");
+});
+
+check("wall push-ups count side-on and ask to turn when facing the camera", () => {
+  const front = session("wallPushup");
+  calibrate(front);
+  front.step(500);
+  assert.equal(front.view().feedback, "Turn side-on to the camera");
+
+  const s = session("wallPushup");
+  s.key("8");
+  calibrate(s);
+  reps(s, "9", 10, 1800);
+  finished(s, 10);
+});
+
+check("new routines feed the muscle map", () => {
+  const at = new Date("2026-10-18T12:00:00Z");
+  const sess = (routineId, data) => ({ routineId, reps: 20, target: 20, finishedAt: at.toISOString(), data });
+  const muscles = bodyHealth(
+    [
+      sess("bicepCurl", { peaks: { left: Array(10).fill(1.5), right: Array(10).fill(1.5) } }),
+      sess("kneeExtension", { peaks: { left: Array(10).fill(0.9), right: Array(10).fill(0.5) } }),
+      sess("wallPushup", { peaks: { both: Array(10).fill(1.2) } }),
+    ],
+    at,
+  );
+  const get = (id) => muscles.find((m) => m.id === id);
+  assert.equal(get("arms").tracked, true);
+  assert.notEqual(get("arms").score, null);
+  assert.notEqual(get("chest").score, null);
+  assert.ok(get("quads-left").score > get("quads-right").score, "per-leg range is kept");
+});
+
 check("streak counts consecutive days", () => {
   const day = (offset) => ({ routineId: "walk", finishedAt: new Date(2026, 9, 17 - offset, 12).toISOString() });
   const now = new Date(2026, 9, 17, 18);
@@ -398,7 +545,7 @@ check("muscle health: weaker side flagged, balance counts for the standing leg, 
   assert.equal(get(muscles, "hipFlexors-right").level, "good");
   assert.equal(get(muscles, "hipFlexors-left").level, "fair", "a clearly weaker side is never strong");
   assert.match(get(muscles, "hipFlexors-left").notes[0], /Weaker than your right side/);
-  assert.equal(get(muscles, "arms").tracked, false);
+  assert.equal(get(muscles, "arms").tracked, true, "curls, presses and push-ups track the arms");
   assert.equal(get(muscles, "quads-left").level, "none");
   assert.equal(strongestMuscle(muscles).id, "hipFlexors-right");
   assert.deepEqual(needsWork(muscles).map((m) => m.id), ["hipFlexors-left"]);

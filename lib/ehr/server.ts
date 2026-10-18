@@ -16,7 +16,7 @@ const MAX_RECORD_CHARS = 60_000;
 const INSTRUCTIONS = `You help a home rehabilitation app decide which exercises a patient should do today.
 You get the exercises the app can coach and the text of the patient's electronic health record (EHR).
 
-Choose the exercises that are safe and beneficial for this patient today, given their diagnoses, surgeries, precautions, weight-bearing status, balance or fall risk, pain, and any restrictions or goals from their care team. Leave out any exercise the record suggests could be unsafe (for example, single-leg stance for someone at high fall risk or not allowed to put full weight on one leg, or a hamstring stretch with posterior hip precautions). If the record says nothing relevant, choose the exercises suited to general recovery. If none are safe, choose none.
+Choose the exercises that are safe and beneficial for this patient today, given their diagnoses, surgeries, precautions, weight-bearing status, balance or fall risk, pain, and any restrictions or goals from their care team. Leave out any exercise the record suggests could be unsafe (for example, single-leg stance for someone at high fall risk or not allowed to put full weight on one leg, a hamstring stretch with posterior hip precautions, or side arm raises and the overhead press soon after shoulder surgery). If the record says nothing relevant, choose the exercises suited to general recovery. If none are safe, choose none.
 
 Write the summary and reasons for the patient: plain, kind language, no jargon, no new diagnoses, and no medical advice beyond which exercises to do.
 

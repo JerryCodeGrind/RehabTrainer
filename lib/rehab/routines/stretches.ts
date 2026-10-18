@@ -143,6 +143,7 @@ export class StandingStretches extends BaseRoutine {
       id: "stretches",
       name: "Standing hip and leg stretches",
       goal: "Flexibility",
+      area: "legs",
       target: `${stretches}: ${quad.holdSec} s holds, ${sideRaise.repsPerSide} raises per side`,
       instructions: [
         "Hold a counter or sturdy chair for every stretch.",

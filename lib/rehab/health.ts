@@ -12,7 +12,7 @@ import type { SessionRecord } from "./storage";
 export type Side = "left" | "right";
 /** Groups measured separately for each side. */
 export type SidedGroup = "hipFlexors" | "quads" | "glutes" | "abductors" | "hamstrings" | "calves";
-/** Groups no routine measures yet; shown as outlines only. */
+/** Upper-body groups, scored for the body as a whole rather than per side. */
 export type UntrackedGroup = "shoulders" | "chest" | "arms" | "upperBack";
 export type Group = SidedGroup | "core" | UntrackedGroup;
 export type MuscleId = `${SidedGroup}-${Side}` | "core" | UntrackedGroup;
@@ -39,7 +39,7 @@ export const GROUPS: Record<Group, GroupInfo> = {
     name: "quads",
     role: "Front of the thigh. Straighten the knee to stand up and climb stairs.",
     tip: "Sit-to-stand: stand up tall, then sit down slowly, taking 2 seconds or more. The quad stretch keeps them flexible.",
-    routines: ["sitToStand", "stretches"],
+    routines: ["sitToStand", "kneeExtension", "stretches"],
   },
   glutes: {
     name: "glutes",
@@ -62,19 +62,39 @@ export const GROUPS: Record<Group, GroupInfo> = {
   calves: {
     name: "calves and ankles",
     role: "Push off when you walk and make small corrections for balance.",
-    tip: "Single-leg stance trains the ankle to keep you steady; walking builds endurance. Stand near a counter for safety.",
-    routines: ["singleLeg", "walk"],
+    tip: "Heel raises build calf strength; single-leg stance trains the ankle to keep you steady. Hold a counter for safety.",
+    routines: ["heelRaise", "singleLeg", "walk"],
   },
   core: {
     name: "Core and balance",
     role: "Keep your trunk steady and upright, so you sway less.",
-    tip: "Single-leg stance: stand tall and keep your hips level. Walking with good posture helps too.",
-    routines: ["singleLeg", "walk"],
+    tip: "Single-leg stance: stand tall and keep your hips level. Trunk side bends keep your sides flexible.",
+    routines: ["singleLeg", "sideBend", "walk"],
   },
-  shoulders: { name: "Shoulders", role: "Reach and lift.", tip: "", routines: [] },
-  chest: { name: "Chest", role: "Push and carry.", tip: "", routines: [] },
-  arms: { name: "Arms", role: "Grip, lift and push up from a chair.", tip: "", routines: [] },
-  upperBack: { name: "Upper back", role: "Posture and pulling.", tip: "", routines: [] },
+  shoulders: {
+    name: "Shoulders",
+    role: "Reach and lift: shelves, hair, getting dressed.",
+    tip: "Side arm raises to shoulder height, and the overhead press once your care team says overhead work is fine.",
+    routines: ["lateralRaise", "overheadPress"],
+  },
+  chest: {
+    name: "Chest",
+    role: "Push and carry, and push yourself up from a chair.",
+    tip: "Wall push-ups build pushing strength; arm openers stretch the chest.",
+    routines: ["wallPushup", "armOpeners"],
+  },
+  arms: {
+    name: "Arms",
+    role: "Grip, lift and push up from a chair.",
+    tip: "Bicep curls with a light water bottle; wall push-ups and the overhead press work the backs of the arms.",
+    routines: ["bicepCurl", "wallPushup", "overheadPress"],
+  },
+  upperBack: {
+    name: "Upper back",
+    role: "Posture and pulling.",
+    tip: "Arm openers: squeeze your shoulder blades together as your arms open.",
+    routines: ["armOpeners"],
+  },
 };
 
 const SIDED: SidedGroup[] = ["hipFlexors", "quads", "glutes", "abductors", "hamstrings", "calves"];
@@ -159,6 +179,17 @@ interface Signal {
   sided: boolean;
 }
 
+/** Peaks of the rep-counted routines (routines/reps.ts), keyed by channel. */
+function repPeaks(d: Record<string, unknown>, key: string): number[] {
+  return nums(rec(d.peaks)[key]);
+}
+
+/** Completion and range for one rep-counted channel. `fullAt` is the progress that counts as full range. */
+function repScore(peaks: number[], perTarget: number, fullAt: number): number | null {
+  if (!peaks.length) return null;
+  return blend([ratio(peaks.length, perTarget), 0.5], [clamp01((mean(peaks) ?? 0) / fullAt), 0.5]);
+}
+
 /** What one finished routine says about each muscle it works. */
 export function sessionSignals(s: SessionRecord): Signal[] {
   const d = rec(s.data);
@@ -226,6 +257,46 @@ export function sessionSignals(s: SessionRecord): Signal[] {
         add(`abductors-${standing}`, score, "balance holds", true);
       }
       add("core", mean(steadiness), "balance holds");
+      break;
+    }
+    case "kneeExtension": {
+      const cfg = SETTINGS.kneeExtension;
+      for (const side of ["left", "right"] as const) {
+        add(`quads-${side}`, repScore(repPeaks(d, side), cfg.targetPerSide, 1), "knee extensions", true);
+      }
+      break;
+    }
+    case "heelRaise":
+      both("calves", repScore(repPeaks(d, "both"), SETTINGS.heelRaise.targetReps, 1), "heel raises");
+      break;
+    case "sideBend": {
+      const per = SETTINGS.sideBend.targetPerSide;
+      add("core", mean([repScore(repPeaks(d, "left"), per, 1), repScore(repPeaks(d, "right"), per, 1)].filter((x): x is number => x !== null)), "side bends");
+      break;
+    }
+    case "lateralRaise":
+    case "bicepCurl":
+    case "overheadPress": {
+      const cfg = SETTINGS[s.routineId];
+      const full = Math.max(1, cfg.up);
+      const score = mean(
+        (["left", "right"] as const).map((k) => repScore(repPeaks(d, k), cfg.targetPerSide, full)).filter((x): x is number => x !== null),
+      );
+      const what = { lateralRaise: "side arm raises", bicepCurl: "bicep curls", overheadPress: "overhead presses" }[s.routineId];
+      if (s.routineId !== "bicepCurl") add("shoulders", score, what);
+      if (s.routineId !== "lateralRaise") add("arms", score, what);
+      break;
+    }
+    case "armOpeners": {
+      const score = repScore(repPeaks(d, "both"), SETTINGS.armOpeners.targetReps, 1);
+      add("chest", score, "arm openers");
+      add("upperBack", score, "arm openers");
+      break;
+    }
+    case "wallPushup": {
+      const score = repScore(repPeaks(d, "both"), SETTINGS.wallPushup.targetReps, 1);
+      add("chest", score, "wall push-ups");
+      add("arms", score, "wall push-ups");
       break;
     }
     case "stretches": {

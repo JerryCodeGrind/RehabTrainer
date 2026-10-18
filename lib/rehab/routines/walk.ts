@@ -37,6 +37,7 @@ export class WalkOutAndBack extends BaseRoutine {
       id: "walk",
       name: "Walk out and back",
       goal: "Endurance",
+      area: "legs",
       target: `${this.cfg.targetLaps} laps`,
       instructions: [
         "Clear a straight path in front of the camera, at least 4 big steps long.",

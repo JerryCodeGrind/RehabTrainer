@@ -50,7 +50,10 @@ export const MUSCLES: MuscleGroup[] = [
     location: "the cap of each shoulder.",
     area: "upper body",
     paths: { front: [DELTOID], back: [DELTOID] },
-    exercises: [],
+    exercises: [
+      { id: "lateralRaise", how: "lifts your arms out to the side." },
+      { id: "overheadPress", how: "pushes your arms up overhead." },
+    ],
   },
   {
     id: "pectorals",
@@ -58,7 +61,10 @@ export const MUSCLES: MuscleGroup[] = [
     location: "the front of the upper chest.",
     area: "upper body",
     paths: { front: ["M119,96 C112,95 106,95 100,96 C90,99 80,103 74,112 C72,124 76,137 86,145 C97,150 110,148 119,144 Z"] },
-    exercises: [],
+    exercises: [
+      { id: "wallPushup", how: "pushes you back from the wall." },
+      { id: "armOpeners", how: "is stretched as your arms open wide." },
+    ],
   },
   {
     id: "biceps",
@@ -66,7 +72,9 @@ export const MUSCLES: MuscleGroup[] = [
     location: "the front of the upper arm.",
     area: "upper body",
     paths: { front: ["M60,152 C56,166 54,183 56,198 C59,202 63,201 65,197 C68,181 68,165 66,152 C64,147 62,147 60,152 Z"] },
-    exercises: [],
+    exercises: [
+      { id: "bicepCurl", how: "bends your elbows to bring your hands up." },
+    ],
   },
   {
     id: "triceps",
@@ -74,7 +82,10 @@ export const MUSCLES: MuscleGroup[] = [
     location: "the back of the upper arm.",
     area: "upper body",
     paths: { back: ["M59,150 C55,165 53,183 55,199 C58,203 63,202 65,197 C68,181 68,165 66,151 C64,146 61,146 59,150 Z"] },
-    exercises: [],
+    exercises: [
+      { id: "overheadPress", how: "straightens your elbows at the top." },
+      { id: "wallPushup", how: "straightens your arms to push back." },
+    ],
   },
   {
     id: "forearms",
@@ -82,7 +93,9 @@ export const MUSCLES: MuscleGroup[] = [
     location: "between the elbow and the wrist.",
     area: "upper body",
     paths: { front: [FOREARM], back: [FOREARM] },
-    exercises: [],
+    exercises: [
+      { id: "bicepCurl", how: "steadies your wrists as you curl." },
+    ],
   },
   {
     id: "trapezius",
@@ -90,7 +103,10 @@ export const MUSCLES: MuscleGroup[] = [
     location: "the upper back, from the neck across to the shoulders.",
     area: "upper body",
     paths: { back: ["M119,64 C114,74 108,84 100,90 C89,95 78,97 69,102 C80,108 95,113 105,123 C111,140 115,160 119,180 Z"] },
-    exercises: [],
+    exercises: [
+      { id: "armOpeners", how: "draws your shoulder blades together." },
+      { id: "lateralRaise", how: "helps lift your arms." },
+    ],
   },
   {
     id: "lats",
@@ -111,6 +127,7 @@ export const MUSCLES: MuscleGroup[] = [
       { id: "sitToStand", how: "helps brace your trunk as you lean forward and rise." },
       { id: "marching", how: "helps keep you upright as each knee lifts." },
       { id: "singleLeg", how: "helps keep your trunk steady while you balance." },
+      { id: "wallPushup", how: "keeps your body in a straight line." },
     ],
   },
   {
@@ -122,6 +139,7 @@ export const MUSCLES: MuscleGroup[] = [
     exercises: [
       { id: "singleLeg", how: "helps stop your trunk tipping sideways on one leg." },
       { id: "walk", how: "helps steady your trunk as you step." },
+      { id: "sideBend", how: "bends your trunk to each side." },
     ],
   },
   {
@@ -178,6 +196,7 @@ export const MUSCLES: MuscleGroup[] = [
       { id: "marching", how: "helps lift and lower each leg." },
       { id: "walk", how: "controls your knee with each step." },
       { id: "stretches", how: "is stretched in the quad stretch." },
+      { id: "kneeExtension", how: "straightens your knee to lift your foot." },
     ],
   },
   {
@@ -226,6 +245,7 @@ export const MUSCLES: MuscleGroup[] = [
       { id: "walk", how: "pushes off with each step." },
       { id: "singleLeg", how: "keeps you balanced over your foot." },
       { id: "marching", how: "steadies the standing leg." },
+      { id: "heelRaise", how: "lifts your heels off the floor." },
     ],
   },
 ];

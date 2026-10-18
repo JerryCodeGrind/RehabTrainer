@@ -200,6 +200,115 @@ export const SETTINGS = {
       smoothing: 0.5,
     },
   },
+
+  // Camera-tracked strength and mobility routines built on the shared rep
+  // counter (routines/reps.ts). Each measures a "progress" value: 0 = resting
+  // position, 1 = full range. A rep starts once progress passes `up` and counts
+  // when it comes back below `down` (hysteresis, so jitter can't double count).
+  // Reps faster than minRepMs are ignored as noise.
+
+  kneeExtension: {
+    targetPerSide: 10,
+    // Seated: (ankleY - kneeY) / torso with the foot flat on the floor, if calibration is unclear.
+    defaultShin: 0.8,
+    // Calibration below this is treated as failed (foot already raised).
+    minShin: 0.35,
+    // Hips this far above the knees (torso lengths) or more means standing: ask to sit.
+    standingKneeDrop: 0.55,
+    up: 0.7,
+    down: 0.25,
+    smoothing: 0.5,
+    minRepMs: 600,
+  },
+
+  heelRaise: {
+    targetReps: 12,
+    // Body rise (shoulders and hips, in torso lengths) that counts as a full raise.
+    fullRise: 0.1,
+    up: 0.6,
+    down: 0.2,
+    smoothing: 0.4,
+    minRepMs: 500,
+  },
+
+  sideBend: {
+    targetPerSide: 8,
+    // Trunk tilt from upright (degrees) that counts as a full bend.
+    fullDeg: 20,
+    up: 0.7,
+    down: 0.25,
+    smoothing: 0.5,
+    minRepMs: 600,
+  },
+
+  lateralRaise: {
+    targetPerSide: 10,
+    // Arm angle at the shoulder (hip-shoulder-wrist). Arms hanging is about 15°,
+    // shoulder height is 90°. Full marks at fullDeg.
+    restDeg: 15,
+    fullDeg: 85,
+    // Above this, ask to stop at shoulder height.
+    maxDeg: 120,
+    up: 0.75,
+    down: 0.25,
+    smoothing: 0.5,
+    minRepMs: 600,
+  },
+
+  bicepCurl: {
+    targetPerSide: 10,
+    // (wristY - elbowY) / torso with the arm hanging straight, if calibration is unclear.
+    defaultForearm: 0.45,
+    // Progress 1 = wrist level with the elbow; a rep needs the wrist above it.
+    up: 1.3,
+    down: 0.35,
+    // Elbow rising this many torso lengths from where it started = swinging the arm.
+    elbowDrift: 0.25,
+    smoothing: 0.5,
+    minRepMs: 500,
+  },
+
+  overheadPress: {
+    targetPerSide: 10,
+    // Wrist height above the shoulder (torso lengths) in the start position, and
+    // the fraction of arm length that counts as fully overhead, if calibration is unclear.
+    defaultStart: 0.35,
+    defaultTop: 0.95,
+    reachOfArm: 0.9,
+    // Elbow angle needed at the top (straight arm).
+    straightElbowDeg: 145,
+    up: 0.8,
+    down: 0.25,
+    smoothing: 0.5,
+    minRepMs: 600,
+  },
+
+  armOpeners: {
+    targetReps: 10,
+    // Wrist-to-wrist distance (torso lengths) with arms forward and wide open, if calibration is unclear.
+    defaultClosed: 0.3,
+    defaultOpen: 2.0,
+    minCalibrationRange: 0.6,
+    // Wrists further than this (torso lengths) above or below the shoulders: ask for shoulder height.
+    maxHeightOffset: 0.45,
+    up: 0.75,
+    down: 0.25,
+    smoothing: 0.5,
+    minRepMs: 600,
+  },
+
+  wallPushup: {
+    targetReps: 10,
+    // Elbow angle with the arm straight, and bent enough for a full rep.
+    straightDeg: 155,
+    bentDeg: 110,
+    // Side view: shoulder width below this fraction of torso length.
+    sideViewMaxShoulderRatio: 0.45,
+    up: 1,
+    down: 0.3,
+    smoothing: 0.5,
+    minRepMs: 700,
+  },
 } as const;
 
 export type Settings = typeof SETTINGS;

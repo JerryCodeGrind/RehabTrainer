@@ -39,6 +39,7 @@ export class SitToStand extends BaseRoutine {
       id: "sitToStand",
       name: "Sit-to-stand",
       goal: "Strength",
+      area: "legs",
       target: `${this.cfg.targetReps} reps`,
       instructions: [
         "Sit on a sturdy chair with arms, facing the camera, feet flat. Your hips and knees need to be in view; your feet don't.",

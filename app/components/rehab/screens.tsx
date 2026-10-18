@@ -192,6 +192,8 @@ function HistoryList({ sessions }: { sessions: SessionRecord[] }) {
 
 // ── Rehabilitation ──────────────────────────────────────────────────────────
 
+const AREAS = ["legs", "core and balance", "upper body"] as const;
+
 export function RehabilitationScreen({
   plan,
   doneToday,
@@ -220,41 +222,49 @@ export function RehabilitationScreen({
         }
       />
 
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {ROUTINE_ORDER.map((id, i) => {
-          const r = info(id);
-          const done = doneToday.has(id);
-          const inPlan = planned.includes(id);
-          return (
-            <li key={id}>
-              <Reveal delay={i * 60}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(id)}
-                  className="press group flex min-h-32 w-full flex-col justify-between gap-6 rounded-[var(--radius-panel)] border border-line bg-surface p-5 text-left"
-                >
-                  <span className="flex w-full items-start justify-between gap-3">
-                    <span className="text-lg font-semibold text-ink">{r.name}</span>
-                    {done ? (
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sage-tint text-sage-ink" aria-label="done today">
-                        <Check className="h-4 w-4" aria-hidden />
+      {AREAS.map((area) => {
+        const ids = ROUTINE_ORDER.filter((id) => info(id).area === area);
+        return (
+          <section key={area} aria-label={area} className="flex flex-col gap-3">
+            <h2 className="text-sm text-ink-3">{area}</h2>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {ids.map((id, i) => {
+              const r = info(id);
+              const done = doneToday.has(id);
+              const inPlan = planned.includes(id);
+              return (
+                <li key={id}>
+                  <Reveal delay={i * 60}>
+                    <button
+                      type="button"
+                      onClick={() => onOpen(id)}
+                      className="press group flex min-h-32 w-full flex-col justify-between gap-6 rounded-[var(--radius-panel)] border border-line bg-surface p-5 text-left"
+                    >
+                      <span className="flex w-full items-start justify-between gap-3">
+                        <span className="text-lg font-semibold text-ink">{r.name}</span>
+                        {done ? (
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sage-tint text-sage-ink" aria-label="done today">
+                            <Check className="h-4 w-4" aria-hidden />
+                          </span>
+                        ) : inPlan ? (
+                          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-sky" aria-label="in today's plan" />
+                        ) : null}
                       </span>
-                    ) : inPlan ? (
-                      <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-sky" aria-label="in today's plan" />
-                    ) : null}
-                  </span>
-                  <span className="flex w-full items-center justify-between text-sm text-ink-2">
-                    {r.target}
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-bg-2 text-ink transition-colors duration-200 group-hover:bg-brand group-hover:text-white">
-                      <Play className="h-3.5 w-3.5 fill-current" aria-hidden />
-                    </span>
-                  </span>
-                </button>
-              </Reveal>
-            </li>
-          );
-        })}
-      </ul>
+                      <span className="flex w-full items-center justify-between text-sm text-ink-2">
+                        {r.target}
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-bg-2 text-ink transition-colors duration-200 group-hover:bg-brand group-hover:text-white">
+                          <Play className="h-3.5 w-3.5 fill-current" aria-hidden />
+                        </span>
+                      </span>
+                    </button>
+                  </Reveal>
+                </li>
+              );
+              })}
+            </ul>
+          </section>
+        );
+      })}
     </Screen>
   );
 }

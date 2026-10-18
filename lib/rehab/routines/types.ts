@@ -1,7 +1,22 @@
 import type { PoseFrame } from "../pose";
 import type { Settings } from "../settings";
 
-export type RoutineId = "sitToStand" | "marching" | "walk" | "singleLeg" | "stretches";
+export type RoutineId =
+  | "sitToStand"
+  | "marching"
+  | "walk"
+  | "singleLeg"
+  | "stretches"
+  | "kneeExtension"
+  | "heelRaise"
+  | "sideBend"
+  | "lateralRaise"
+  | "bicepCurl"
+  | "overheadPress"
+  | "armOpeners"
+  | "wallPushup";
+/** Where on the body a routine mostly works; groups the exercise list. */
+export type Area = "legs" | "core and balance" | "upper body";
 export type Goal = "Strength" | "Mobility" | "Endurance" | "Balance" | "Flexibility";
 
 export interface CalibrationStep {
@@ -14,6 +29,7 @@ export interface RoutineInfo {
   id: RoutineId;
   name: string;
   goal: Goal;
+  area: Area;
   /** e.g. "10 reps" or "3 holds per leg, 10 s each". */
   target: string;
   instructions: string[];
@@ -121,6 +137,11 @@ export abstract class BaseRoutine implements Routine {
   getFeedback(t: number): string {
     if (this.message && t < this.message.until) return this.message.text;
     return this.statusMessage(t);
+  }
+
+  /** True while a one-off message is on screen. */
+  protected showing(t: number): boolean {
+    return !!this.message && t < this.message.until;
   }
 
   /** Show a one-off message for a few seconds. */

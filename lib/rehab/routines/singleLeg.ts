@@ -40,6 +40,7 @@ export class SingleLegStance extends BaseRoutine {
       id: "singleLeg",
       name: "Single-leg stance",
       goal: "Balance",
+      area: "core and balance",
       target: `${this.cfg.holdsPerSide} holds per leg, ${this.cfg.holdSec} s each`,
       instructions: [
         "Stand facing the camera next to a counter, resting one hand on it. Feet in view works best; knees are enough.",

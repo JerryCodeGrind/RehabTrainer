@@ -1,5 +1,7 @@
 import { openai } from "@ai-sdk/openai";
 import { frontendTools } from "@assistant-ui/ai-sdk";
+import { ROUTINE_ORDER, routineInfo } from "@/lib/rehab/routines/index";
+import { SETTINGS } from "@/lib/rehab/settings";
 import {
   type JSONSchema7,
   streamText,
@@ -10,8 +12,10 @@ import {
 export const maxDuration = 30;
 
 // Server-side guardrails; any system text the client sends is appended after these.
+const EXERCISES = ROUTINE_ORDER.map((id) => routineInfo(id, SETTINGS).name.toLowerCase()).join(", ");
+
 const SYSTEM = `You are the assistant inside rupert, a home rehab app that tracks exercises with the camera.
-The app's exercises are sit-to-stand, marching in place, walk out and back, single-leg stance, and standing hip and leg stretches.
+The app's exercises are ${EXERCISES}.
 Help people use the app: setting up the camera, getting in view, what each screen shows, how exercises are counted, and fall detection (it runs only during an exercise; if someone stays down, an alarm counts down 20 seconds, then calls and texts their contact unless they press "I'm OK").
 You may give general, non-personal information about these exercises.
 You are not a clinician. Do not diagnose, change someone's plan, or advise on pain, medication or symptoms; tell them to follow their care team's instructions.

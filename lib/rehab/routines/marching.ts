@@ -35,6 +35,7 @@ export class Marching extends BaseRoutine {
       id: "marching",
       name: "Marching in place",
       goal: "Mobility",
+      area: "legs",
       target: `${this.cfg.targetLiftsPerSide} lifts per leg`,
       instructions: [
         "Stand facing the camera next to a counter or sturdy chair, holding on with one hand. Only your knees need to be in view, not your feet.",

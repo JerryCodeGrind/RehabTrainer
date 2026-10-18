@@ -5,8 +5,13 @@ import type { Settings } from "./settings";
 
 /** MediaPipe Pose landmark indices. Left/right are the person's own sides. */
 export const LM = {
+  nose: 0,
   leftShoulder: 11,
   rightShoulder: 12,
+  leftElbow: 13,
+  rightElbow: 14,
+  leftWrist: 15,
+  rightWrist: 16,
   leftHip: 23,
   rightHip: 24,
   leftKnee: 25,
@@ -22,6 +27,10 @@ export const LM = {
 export const JOINT_NAMES: Record<number, string> = {
   11: "Left shoulder",
   12: "Right shoulder",
+  13: "Left elbow",
+  14: "Right elbow",
+  15: "Left wrist",
+  16: "Right wrist",
   23: "Left hip",
   24: "Right hip",
   25: "Left knee",
@@ -37,6 +46,7 @@ export const JOINT_NAMES: Record<number, string> = {
 export const TORSO = [LM.leftShoulder, LM.rightShoulder, LM.leftHip, LM.rightHip];
 export const LEGS = [LM.leftKnee, LM.rightKnee, LM.leftAnkle, LM.rightAnkle];
 export const FEET = [LM.leftHeel, LM.rightHeel, LM.leftFootIndex, LM.rightFootIndex];
+export const ARMS = [LM.leftElbow, LM.rightElbow, LM.leftWrist, LM.rightWrist];
 
 export type Side = "left" | "right";
 
@@ -179,6 +189,22 @@ export function leg(side: Side) {
   return side === "left"
     ? { hip: LM.leftHip, knee: LM.leftKnee, ankle: LM.leftAnkle, heel: LM.leftHeel, toe: LM.leftFootIndex }
     : { hip: LM.rightHip, knee: LM.rightKnee, ankle: LM.rightAnkle, heel: LM.rightHeel, toe: LM.rightFootIndex };
+}
+
+/** Landmark indices for one side's arm. */
+export function arm(side: Side) {
+  return side === "left"
+    ? { shoulder: LM.leftShoulder, elbow: LM.leftElbow, wrist: LM.leftWrist, hip: LM.leftHip }
+    : { shoulder: LM.rightShoulder, elbow: LM.rightElbow, wrist: LM.rightWrist, hip: LM.rightHip };
+}
+
+/** Torso tilt from vertical in degrees, positive toward the person's left. 0 = upright. */
+export function trunkLean(f: PoseFrame): number {
+  const s = shoulderMid(f);
+  const h = hipMid(f);
+  const deg = (Math.atan2(s.x - h.x, h.y - s.y) * 180) / Math.PI;
+  // The person's left shoulder is on the image's right when facing the camera; follow it either way.
+  return Math.sign(f.lm[LM.leftShoulder].x - f.lm[LM.rightShoulder].x || 1) * deg;
 }
 
 export function other(side: Side): Side {
